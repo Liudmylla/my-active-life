@@ -35,6 +35,20 @@ const normalizeIds = <T extends {id:number},>(items:T[]):T[] => {
   })
 }
 
+const normalizeWorkoutTemplate = (value:string):WorkoutTemplateKey => {
+  const key=value.trim().toLowerCase()
+  if (['lowerbody','низ тела','низ','ноги','ноги и ягодицы'].includes(key)) return 'lowerBody'
+  if (['upperbody','верх тела','верх','спина, плечи, руки'].includes(key)) return 'upperBody'
+  if (['fullbody','full body','общая силовая','всё тело','все тело'].includes(key)) return 'fullBody'
+  return 'fullBody'
+}
+const mergeRecords = <T extends {id:number},>(preferred:T[], secondary:T[]):T[] => {
+  const merged=new Map<number,T>()
+  secondary.forEach(item=>merged.set(item.id,item))
+  preferred.forEach(item=>merged.set(item.id,{...(merged.get(item.id)||{} as T),...item}))
+  return Array.from(merged.values())
+}
+
 // Legacy correction requested by the user: remove the duplicate from 18 Nov
 // and retain the workout as completed on 17 Nov. Safe to run repeatedly.
 const migrateLegacyStrength = (items:StrengthWorkout[]):StrengthWorkout[] =>
@@ -43,6 +57,7 @@ const migrateLegacyStrength = (items:StrengthWorkout[]):StrengthWorkout[] =>
   )
 const normalizeStrengthBase = (items:StrengthWorkout[]):StrengthWorkout[] => normalizeIds(items).map(workout=>({
   ...workout,
+  template:normalizeWorkoutTemplate(workout.template),
   exercises:normalizeIds((workout.exercises||[]).map(ex=>({
     ...ex,
     sets:normalizeIds(ex.sets||[])
@@ -259,7 +274,9 @@ function App() {
   }
   const updateSet = (exerciseId:number,setId:number,patch:Partial<SetEntry>) => setDraftExercises(prev=>prev.map(ex=>ex.id===exerciseId?{...ex,sets:ex.sets.map(st=>st.id===setId?{...st,...patch}:st)}:ex))
   const loadPreviousWorkout = (value=template) => {
-    const previous = strengthHistory.find(w=>w.template===value)
+    const previous = strengthHistory
+      .filter(w=>normalizeWorkoutTemplate(w.template)===value)
+      .sort((a,b)=>b.date.localeCompare(a.date))[0]
     if (!previous) { setNotice('Для этого шаблона пока нет сохранённой тренировки.'); return }
     setWorkoutTitle(previous.title)
     setDraftExercises(previous.exercises.map(ex=>({...ex,name:ex.name,id:Date.now()+Math.random(),sets:ex.sets.map(st=>({id:Date.now()+Math.random(),kg:st.kg,reps:st.reps,done:false}))})))
@@ -267,7 +284,9 @@ function App() {
   }
   const changeTemplate = (value:WorkoutTemplateKey) => {
     setTemplate(value)
-    const previous = strengthHistory.find(w=>w.template===value)
+    const previous = strengthHistory
+      .filter(w=>normalizeWorkoutTemplate(w.template)===value)
+      .sort((a,b)=>b.date.localeCompare(a.date))[0]
     if (previous) {
       setWorkoutTitle(previous.title)
       setDraftExercises(previous.exercises.map(ex=>({...ex,name:ex.name,id:Date.now()+Math.random(),sets:ex.sets.map(st=>({id:Date.now()+Math.random(),kg:st.kg,reps:st.reps,done:false}))})))
@@ -337,8 +356,10 @@ function App() {
         const useLocalRuns=!cloudRuns.length&&!!localRuns.length
         const finalSessions: Session[]=linkStrengthSessions(ensureSessionDates<Session>(useLocalSessions?localSessions!:cloudSessions),useLocalStrength?localStrength!:cloudStrength)
         
-        const finalStrength=useLocalStrength?localStrength!:cloudStrength
-        const finalRuns=useLocalRuns?localRuns!:cloudRuns
+        // Merge both sources by stable ID: local-only records are retained,
+        // and local edits win for matching records so detailed exercise data is not lost.
+        const finalStrength=mergeRecords(localStrength,cloudStrength)
+        const finalRuns=mergeRecords(localRuns,cloudRuns)
         const useLocalStarts=!starts.length&&!!localStarts.length
         const useLocalLogs=!logs.length&&!!localLogs.length
         const finalStarts=useLocalStarts?localStarts!:starts
@@ -353,8 +374,10 @@ function App() {
         if(!cancelled) { setCloudReady(true);setCloudStatus('Облако синхронизировано');setAuthMessage('') }
         // Seed only tables that were empty in the cloud; never overwrite existing cloud history.
         if(useLocalSessions||finalStrength.some(w=>w.calendarSessionId!=null)) void saveSessionsCloud(finalSessions,true)
-        if(useLocalStrength||finalStrength.length>0) void saveStrengthCloud(finalStrength,true)
-        if(useLocalRuns) void saveRunningCloud(finalRuns,true)
+        // Write the merged histories back; syncTable receives the union of IDs,
+        // so records that exist only in either source are not discarded.
+        if(finalStrength.length>0) void saveStrengthCloud(finalStrength,true)
+        if(finalRuns.length>0) void saveRunningCloud(finalRuns,true)
         if(useLocalStarts||useLocalLogs||!latestWeight) void saveDailyCloud(finalStarts,finalLogs,latestWeight?.weight_kg!=null?String(latestWeight.weight_kg):weight,true)
       } catch(error:any) { if(!cancelled){setCloudStatus('Ошибка облака');setAuthMessage(`Не удалось загрузить данные: ${error?.message||'ошибка сети'}`)} }
     }
