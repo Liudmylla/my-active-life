@@ -139,7 +139,7 @@ function App() {
     const rows=items.map(x=>({user_id:user!.id,id:x.id,workout_date:x.date.slice(0,10),template:x.template,title:x.title,exercises:x.exercises,}))
     return syncTable('strength_history',rows,'id','id',items.map(x=>x.id),allowBeforeReady)
   },allowBeforeReady)
-  const saveDailyCloud = (starts:string[], logs:CycleLog[], currentWeight:string) => withCloudSave('daily', async()=>{
+  const saveDailyCloud = (starts:string[], logs:CycleLog[], currentWeight:string, allowBeforeReady=false) => withCloudSave('daily', async()=>{
     const byDate=new Map<string,any>()
     for (const date of starts) byDate.set(date,{...(byDate.get(date)||{}),user_id:user!.id,entry_date:date,period_start:true})
     for (const log of logs) byDate.set(log.date,{...(byDate.get(log.date)||{}),user_id:user!.id,entry_date:log.date,energy:log.energy,symptoms:log.symptoms,notes:log.note||null,cycle_phase:log.phase||null,})
@@ -160,7 +160,7 @@ function App() {
     const {error:upsertError}=merged.length?await supabase!.from('daily_data').upsert(merged,{onConflict:'user_id,entry_date'}):{error:null}
     if(upsertError) throw upsertError
     return true
-  })
+  },allowBeforeReady)
   const save = (next:Session[]) => {
     setSessions(next); localStorage.setItem('mal-v2-sessions',JSON.stringify(next)); void saveSessionsCloud(next)
   }
@@ -309,7 +309,7 @@ function App() {
         if(useLocalSessions) void saveSessionsCloud(finalSessions,true)
         if(useLocalStrength) void saveStrengthCloud(finalStrength,true)
         if(useLocalRuns) void saveRunningCloud(finalRuns,true)
-        if(useLocalStarts||useLocalLogs||!latestWeight) void saveDailyCloud(finalStarts,finalLogs,latestWeight?.weight_kg!=null?String(latestWeight.weight_kg):weight)
+        if(useLocalStarts||useLocalLogs||!latestWeight) void saveDailyCloud(finalStarts,finalLogs,latestWeight?.weight_kg!=null?String(latestWeight.weight_kg):weight,true)
       } catch(error:any) { if(!cancelled){setCloudStatus('Ошибка облака');setAuthMessage(`Не удалось загрузить данные: ${error?.message||'ошибка сети'}`)} }
     }
     load()
