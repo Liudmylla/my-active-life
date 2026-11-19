@@ -1,20 +1,18 @@
 # My Active Life — architecture
 
-## Source layout
-- `src/App.tsx` — application composition and page workflows.
-- `src/components/layout` — navigation and application header.
-- `src/components/calendar/WeekCalendar.tsx` — week navigation and date selection.
-- `src/constants/activities.ts` — activity catalogue and stable workout-template/exercise keys.
-- `src/i18n/catalog.ts` — Russian labels and legacy-name normalization; future locales can be added without changing stored keys.
-- `src/types/index.ts` — shared domain types.
-- `src/utils/dates.ts` — timezone-safe local date helpers.
-- `src/supabase.ts` — Supabase client.
+- `src/App.tsx`: application workflows.
+- `src/components`: reusable UI.
+- `src/constants/activities.ts`: activity kinds and stable workout/exercise keys.
+- `src/i18n/catalog.ts`: Russian display labels; keys are stored in records.
+- `src/types/index.ts`: domain types.
+- `src/utils/dates.ts`: local date utilities.
+- `src/supabase.ts`: Supabase client.
 
-## Stable workout identifiers
-Workout templates are stored as `lowerBody`, `upperBody`, or `fullBody`. Exercises are stored as stable keys such as `romanianDeadlift` and `bulgarianSplitSquat`. Russian text is presentation-only and lives in the i18n catalog. Existing local and cloud records with the previous Russian/English labels are normalized when loaded.
+## Fresh start
+The app uses the new `mal-v2-*` local storage namespace. It does not import, normalize, or read the old local data. Re-enter records after reset.
 
-## Date handling
-Strength workout dates use local `YYYY-MM-DD` values. The date defaults to today, can be changed before saving, and is persisted in local browser storage. Calendar activity edits update the matching running-history row by its stable legacy ID without creating a second history entry. Deleting or unchecking a calendar item does not delete an independent running-history record.
+## Supabase v2
+Only profiles, sessions, running_history, strength_history and daily_data remain. Legacy columns and migration logic are removed. Running history is independent: source_session_id is informational and has no FK. Owner-scoped RLS is retained.
 
-## Supabase safety
-The current app schema is retained in this code change. No database migrations or destructive SQL are executed. A clean replacement schema and any table-removal statements require a separate review before they are run in Supabase.
+## Important
+`supabase/schema.sql` and `supabase/001_create_and_migrate.sql` are destructive reset scripts. They drop the app tables and `public.user_app_data`, then recreate them. They have not been run against the live database.
