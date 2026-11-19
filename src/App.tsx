@@ -71,7 +71,7 @@ const linkStrengthSessions = (items:Session[],workouts:StrengthWorkout[]):Sessio
 }
 
 function App() {
-  const [sessions,setSessions] = useState<Session[]>(()=>{try { const s=localStorage.getItem('mal-v2-sessions'); const saved=ensureSessionDates(normalizeIds(s?JSON.parse(s):initial)); const strength=migrateLegacyStrength(JSON.parse(localStorage.getItem('mal-v2-strength')||'[]')); return linkStrengthSessions(saved,strength) } catch { return ensureSessionDates(initial) }})
+  const [sessions,setSessions] = useState<Session[]>(()=>{try { const s=localStorage.getItem('mal-v2-sessions'); const saved=ensureSessionDates<Session>(normalizeIds<Session>(s?(JSON.parse(s) as Session[]):initial)); const strength=migrateLegacyStrength(JSON.parse(localStorage.getItem('mal-v2-strength')||'[]')); return linkStrengthSessions(saved,strength) } catch { return ensureSessionDates(initial) }})
   const [tab,setTab] = useState<AppTab>('week')
   const [menuOpen,setMenuOpen] = useState(false)
   const [runCategoryFilter,setRunCategoryFilter] = useState<'Все'|RunCategory>('Все')
