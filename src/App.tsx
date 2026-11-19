@@ -59,7 +59,7 @@ const strengthSession = (workout:StrengthWorkout):Session => ({
   duration:undefined
 })
 const linkStrengthSessions = (items:Session[],workouts:StrengthWorkout[]):Session[] => {
-  const next=[...items]
+  const next=items.filter(s=>s.id!==1795123675574606)
   for(const workout of workouts){
     if(workout.calendarSessionId==null) continue
     const linked=strengthSession(workout)
