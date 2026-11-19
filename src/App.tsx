@@ -34,13 +34,6 @@ const normalizeIds = <T extends {id:number},>(items:T[]):T[] => {
     return {...item,id}
   })
 }
-const normalizeStrength = (items:StrengthWorkout[]):StrengthWorkout[] => normalizeIds(items).map(workout=>({
-  ...workout,
-  exercises:normalizeIds((workout.exercises||[]).map(ex=>({
-    ...ex,
-    sets:normalizeIds(ex.sets||[])
-  })))
-}))
 
 // Legacy correction requested by the user: remove the duplicate from 18 Nov
 // and retain the workout as completed on 17 Nov. Safe to run repeatedly.
@@ -70,7 +63,7 @@ const linkStrengthSessions = (items:Session[],workouts:StrengthWorkout[]):Sessio
   for(const workout of workouts){
     if(workout.calendarSessionId==null) continue
     const linked=strengthSession(workout)
-    const index=next.findIndex(s=>s.id===workout.id)
+    const index=next.findIndex(s=>s.id===workout.calendarSessionId)
     if(index>=0) next[index]={...next[index],...linked,done:next[index].done}
     else next.push(linked)
   }
