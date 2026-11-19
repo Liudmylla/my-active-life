@@ -352,8 +352,8 @@ function App() {
         if(latestWeight?.weight_kg!=null) setWeight(String(latestWeight.weight_kg))
         if(!cancelled) { setCloudReady(true);setCloudStatus('Облако синхронизировано');setAuthMessage('') }
         // Seed only tables that were empty in the cloud; never overwrite existing cloud history.
-        if(useLocalSessions||useLocalStrength||finalSessions.length!==(useLocalSessions?localSessions!:cloudSessions).length) void saveSessionsCloud(finalSessions,true)
-        if(useLocalStrength||cloudStrength.length!==(strength.data||[]).length) void saveStrengthCloud(finalStrength,true)
+        if(useLocalSessions||finalStrength.some(w=>w.calendarSessionId!=null)) void saveSessionsCloud(finalSessions,true)
+        if(useLocalStrength||finalStrength.length>0) void saveStrengthCloud(finalStrength,true)
         if(useLocalRuns) void saveRunningCloud(finalRuns,true)
         if(useLocalStarts||useLocalLogs||!latestWeight) void saveDailyCloud(finalStarts,finalLogs,latestWeight?.weight_kg!=null?String(latestWeight.weight_kg):weight,true)
       } catch(error:any) { if(!cancelled){setCloudStatus('Ошибка облака');setAuthMessage(`Не удалось загрузить данные: ${error?.message||'ошибка сети'}`)} }
