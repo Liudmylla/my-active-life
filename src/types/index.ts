@@ -24,7 +24,7 @@ export type Session = {
 
 export type SetEntry = { id: number; kg: string; reps: string; done: boolean }
 export type ExerciseEntry = { id: number; name: string; sets: SetEntry[] }
-export type StrengthWorkout = { id: number; date: string; template: string; title: string; exercises: ExerciseEntry[] }
+export type StrengthWorkout = { id: number; date: string; template: string; title: string; exercises: ExerciseEntry[]; calendarSessionId?: number | null }
 export type CycleLog = { id: number; date: string; energy: number; symptoms: string[]; note: string; phase: string }
 export type RunningEntry = Session & { runDate: string }
 export type AppTab = 'week' | 'log' | 'progress' | 'cycle'
