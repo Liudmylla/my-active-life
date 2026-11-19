@@ -117,6 +117,7 @@ function App() {
   const [runningHistory,setRunningHistory]=useState<RunningEntry[]>(()=>{try{return normalizeIds(JSON.parse(localStorage.getItem('mal-v2-running')||'[]'))}catch{return []}})
   const [template,setTemplate] = useState<WorkoutTemplateKey>('lowerBody')
   const [strengthDate,setStrengthDate] = useState(()=>localStorage.getItem('mal-v2-strength-date') || localISODate(new Date()))
+  const [activeStrengthSessionId,setActiveStrengthSessionId] = useState<number|null>(null)
   const [workoutTitle,setWorkoutTitle] = useState('Ноги и ягодицы')
   const [draftExercises,setDraftExercises] = useState<ExerciseEntry[]>(()=>{
     const previous = strengthHistory.find(w=>w.template==='lowerBody')
@@ -273,14 +274,34 @@ function App() {
     save(sessions.filter(s=>s.id!==id))
   }
   const updateSet = (exerciseId:number,setId:number,patch:Partial<SetEntry>) => setDraftExercises(prev=>prev.map(ex=>ex.id===exerciseId?{...ex,sets:ex.sets.map(st=>st.id===setId?{...st,...patch}:st)}:ex))
+  const copyWorkoutExercises = (exercises:ExerciseEntry[]) => exercises.map(ex=>({...ex,id:Date.now()+Math.random(),sets:ex.sets.map(st=>({id:Date.now()+Math.random(),kg:st.kg,reps:st.reps,done:false}))}))
+  const latestWorkoutFor = (value:WorkoutTemplateKey) => strengthHistory
+    .filter(w=>normalizeWorkoutTemplate(w.template)===value)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0]
   const loadPreviousWorkout = (value=template) => {
-    const previous = strengthHistory
-      .filter(w=>normalizeWorkoutTemplate(w.template)===value)
-      .sort((a,b)=>b.date.localeCompare(a.date))[0]
+    const previous=latestWorkoutFor(value)
     if (!previous) { setNotice('Для этого шаблона пока нет сохранённой тренировки.'); return }
     setWorkoutTitle(previous.title)
-    setDraftExercises(previous.exercises.map(ex=>({...ex,name:ex.name,id:Date.now()+Math.random(),sets:ex.sets.map(st=>({id:Date.now()+Math.random(),kg:st.kg,reps:st.reps,done:false}))})))
+    setDraftExercises(copyWorkoutExercises(previous.exercises))
     setNotice('Подставили прошлые веса и повторы. Отметки выполнения сброшены — можно начинать!')
+  }
+  const openPlannedStrength = (session:Session) => {
+    const value:WorkoutTemplateKey=session.kind==='Силовая · верх'?'upperBody':session.kind==='Full Body'?'fullBody':'lowerBody'
+    const saved=strengthHistory.find(w=>w.calendarSessionId===session.id)
+    setActiveStrengthSessionId(session.id)
+    setTemplate(value)
+    setStrengthDate(session.date||localISODate(new Date()))
+    setWorkoutTitle(session.title|| (value==='lowerBody'?'Ноги и ягодицы':value==='upperBody'?'Спина, плечи, руки':'Общая силовая'))
+    if(saved) {
+      setWorkoutTitle(saved.title)
+      setDraftExercises(copyWorkoutExercises(saved.exercises))
+      setNotice('Открыта именно эта тренировка из плана. Заполни фактические подходы.')
+    } else {
+      const previous=latestWorkoutFor(value)
+      setDraftExercises(previous?copyWorkoutExercises(previous.exercises):(workoutTemplates[value]||[]).map(makeExercise))
+      setNotice(previous?'План открыт. Подставили последние веса и повторы этого типа — проверь и заполни факт.':'План открыт. Добавь упражнения и заполни фактические подходы.')
+    }
+    setTab('log')
   }
   const changeTemplate = (value:WorkoutTemplateKey) => {
     setTemplate(value)
@@ -298,12 +319,14 @@ function App() {
     }
   }
   const saveStrengthWorkout = () => {
-    const existing=sessions.find(s=>s.date===strengthDate&&s.kind===(template==='lowerBody'?'Силовая · низ':template==='upperBody'?'Силовая · верх':'Full Body')&&s.title===(workoutTitle||template))
-    const workoutId=existing?.id??Date.now()
-    const workout:StrengthWorkout={id:workoutId,date:strengthDate,template,title:workoutTitle||template,exercises:draftExercises,calendarSessionId:workoutId}
+    const existingWorkout=strengthHistory.find(w=>activeStrengthSessionId!==null?w.calendarSessionId===activeStrengthSessionId:w.date===strengthDate&&w.template===template&&w.title===(workoutTitle||template))
+    const calendarId=activeStrengthSessionId??existingWorkout?.calendarSessionId??Date.now()
+    const workoutId=existingWorkout?.id??Date.now()
+    const workout:StrengthWorkout={id:workoutId,date:strengthDate,template,title:workoutTitle||template,exercises:draftExercises,calendarSessionId:calendarId}
     const next=[workout,...strengthHistory.filter(w=>w.id!==workout.id)]
-    const linked=strengthSession(workout)
-    const nextSessions=existing?sessions.map(s=>s.id===existing.id?linked:s):[...sessions,linked]
+    const plannedSession=sessions.find(s=>s.id===calendarId)
+    const linked={...strengthSession(workout),done:true,recordedAt:new Date().toISOString(),duration:plannedSession?.duration}
+    const nextSessions=plannedSession?sessions.map(s=>s.id===calendarId?{...s,...linked}:s):[...sessions,linked]
     setStrengthHistory(next)
     localStorage.setItem('mal-v2-strength',JSON.stringify(next))
     void saveStrengthCloud(next)
@@ -418,14 +441,14 @@ function App() {
         <section className="run-rhythm"><div className="run-rhythm-heading"><div><span className="eyebrow">ТВОЙ БЕГОВОЙ РИТМ</span><h2>Три пробежки в неделю</h2><p>Три разные задачи — без лишней сложности.</p></div><Footprints size={22}/></div><div className="run-rhythm-grid"><div className="run-rhythm-item easy"><span>ПН</span><b>Лёгкий</b><small>Комфортное усилие</small></div><div className="run-rhythm-item quality"><span>ЧТ</span><b>Работа</b><small>Интервалы · отрезки · темпо</small></div><div className="run-rhythm-item long"><span>СБ</span><b>Длительный</b><small>Спокойная выносливость</small></div></div></section>
         <section className="stats-grid"><div className="stat-card"><div className="stat-icon green"><Activity size={19}/></div><div className="stat-name">Тренировки</div><strong>{completed.length}<small> / {weekSessions.length}</small></strong><div className="stat-foot">выполнено за неделю</div></div><div className="stat-card"><div className="stat-icon peach"><Footprints size={19}/></div><div className="stat-name">Беговая дистанция</div><strong>{totalKm.toFixed(1)} <small>км</small></strong><div className="stat-foot">суммарно за неделю</div></div><div className="stat-card"><div className="stat-icon lilac"><Clock3 size={19}/></div><div className="stat-name">Время активности</div><strong>{Math.floor(totalMins/60)}<small> ч </small>{totalMins%60}<small> мин</small></strong><div className="stat-foot">в движении</div></div><div className="stat-card"><div className="stat-icon rose"><HeartPulse size={19}/></div><div className="stat-name">Энергия</div><strong>{totalKcal.toLocaleString('ru-RU')} <small>ккал</small></strong><div className="stat-foot">по завершённым тренировкам</div></div></section>
         <section className="content-grid"><div className="panel schedule"><div className="panel-title"><div><h2>{formatLocalDate(parseLocalDate(selectedDate), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h2><p>Запланированное и выполненное</p></div><button className="text-button" onClick={()=>setModal(true)}><CirclePlus size={16}/> Добавить</button></div>
-          {selected.length===0?<div className="empty"><div className="empty-icon"><Leaf/></div><b>День свободен</b><p>Можно отдохнуть или добавить активность.</p><button className="outline" onClick={()=>setModal(true)}>Запланировать тренировку</button></div>:<div className="session-list">{selected.map(s=>{const I=iconFor(s.kind);return <div className={`session ${s.done?'finished':''}`} key={s.id}><div className="session-icon"><I size={19}/></div><div className="session-main"><div className="session-title">{s.title}</div><div className="session-meta">{s.kind==='Бег'?(s.runCategory||'Бег')+(s.workType?` · ${s.workType.toLowerCase()}`:''):s.kind} {s.duration?`· ${s.duration} мин`:''}{s.distance?` · ${s.distance} км`:''}</div>{s.done&&s.kind==='Бег'&&<div className="run-detail">{s.pace&&<span>Темп {s.pace}/км</span>}{s.avgHr&&<span>Пульс {s.avgHr}</span>}{s.calories&&<span>{s.calories} ккал</span>}</div>}</div><div className="session-actions"><button className={`check-btn ${s.done?'checked':''}`} onClick={()=>toggleDone(s.id)} title="Отметить выполнение">{s.done?<Check size={16}/>:<span/>}</button><button className="delete-btn" onClick={()=>editSession(s)} title="Редактировать" aria-label="Редактировать активность"><Pencil size={15}/></button><button className="delete-btn" onClick={()=>deleteSession(s.id)} title="Удалить"><Trash2 size={15}/></button></div></div>})}</div>}
+          {selected.length===0?<div className="empty"><div className="empty-icon"><Leaf/></div><b>День свободен</b><p>Можно отдохнуть или добавить активность.</p><button className="outline" onClick={()=>setModal(true)}>Запланировать тренировку</button></div>:<div className="session-list">{selected.map(s=>{const I=iconFor(s.kind);return <div className={`session ${s.done?'finished':''}`} key={s.id}><div className="session-icon"><I size={19}/></div><div className="session-main"><div className="session-title">{s.title}</div><div className="session-meta">{s.kind==='Бег'?(s.runCategory||'Бег')+(s.workType?` · ${s.workType.toLowerCase()}`:''):s.kind} {s.duration?`· ${s.duration} мин`:''}{s.distance?` · ${s.distance} км`:''}</div>{s.done&&s.kind==='Бег'&&<div className="run-detail">{s.pace&&<span>Темп {s.pace}/км</span>}{s.avgHr&&<span>Пульс {s.avgHr}</span>}{s.calories&&<span>{s.calories} ккал</span>}</div>}</div><div className="session-actions">{s.kind!=='Бег'&&<button className="outline" onClick={()=>openPlannedStrength(s)} title="Открыть эту тренировку в дневнике">Заполнить</button>}<button className={`check-btn ${s.done?'checked':''}`} onClick={()=>toggleDone(s.id)} title="Отметить выполнение">{s.done?<Check size={16}/>:<span/>}</button><button className="delete-btn" onClick={()=>editSession(s)} title="Редактировать" aria-label="Редактировать активность"><Pencil size={15}/></button><button className="delete-btn" onClick={()=>deleteSession(s.id)} title="Удалить"><Trash2 size={15}/></button></div></div>})}</div>}
         </div><div className="panel side-panel"><div className="panel-title"><div><h2>Маленькие итоги</h2><p>Что уже получилось</p></div><Sparkles size={19} className="muted-icon"/></div><div className="progress-line"><div className="progress-copy"><span>Выполнение плана</span><b>{weekSessions.length?Math.round(completed.length/weekSessions.length*100):0}%</b></div><div className="bar"><i style={{width:`${weekSessions.length?completed.length/weekSessions.length*100:0}%`}}/></div></div><div className="mini-divider"/><div className="tip"><div className="tip-icon"><Target size={18}/></div><div><b>Твой фокус</b><p>Сохраняй баланс между нагрузкой и восстановлением. Отдых — тоже часть прогресса.</p></div></div><div className="weight-box"><div><span>Текущий вес</span><small>Можно обновить вручную</small></div><div className="weight-input"><input value={weight} onChange={e=>setWeight(e.target.value)} aria-label="Вес в килограммах"/><b>кг</b></div></div></div></section>
       </>}
       {tab==='log' && <>
         <section className="welcome"><div><div className="eyebrow">СИЛОВОЙ ДНЕВНИК</div><h1>Тренировка в деталях<span>.</span></h1><p>Планируй подходы, фиксируй фактический вес и повторы — корректировать можно прямо по ходу занятия.</p></div></section>
         <div className="panel log-panel strength-builder">
           <div className="panel-title"><div><h2>Новая силовая тренировка</h2><p>План и факт хранятся вместе</p></div><span className="soft-tag">Зал</span></div>
-          <div className="strength-top"><label>Шаблон тренировки<select value={template} onChange={e=>changeTemplate(e.target.value as WorkoutTemplateKey)}><option value="lowerBody">Низ тела</option><option value="upperBody">Верх тела</option><option value="fullBody">Full Body</option></select></label><label>Название<input value={workoutTitle} onChange={e=>setWorkoutTitle(e.target.value)} placeholder="Например, ноги и ягодицы"/></label><label>Дата тренировки<input type="date" value={strengthDate} onChange={e=>setStrengthDate(e.target.value)}/></label></div><div className="previous-workout-row"><div><b>Продолжить прогресс</b><small>{strengthHistory.some(w=>w.template===template)?'Загрузить веса и повторы из последней такой тренировки':'Когда сохранишь первую тренировку, здесь появятся прошлые результаты'}</small></div><button className="outline" onClick={()=>loadPreviousWorkout()} disabled={!strengthHistory.some(w=>w.template===template)}><Clock3 size={14}/> Взять прошлую</button></div>
+          <div className="strength-top">{activeStrengthSessionId!==null&&<div className="notice">Заполнение тренировки из плана · {formatLocalDate(parseLocalDate(strengthDate),{day:'numeric',month:'long'})}</div>}<label>Шаблон тренировки<select value={template} onChange={e=>changeTemplate(e.target.value as WorkoutTemplateKey)}><option value="lowerBody">Низ тела</option><option value="upperBody">Верх тела</option><option value="fullBody">Full Body</option></select></label><label>Название<input value={workoutTitle} onChange={e=>setWorkoutTitle(e.target.value)} placeholder="Например, ноги и ягодицы"/></label><label>Дата тренировки<input type="date" value={strengthDate} onChange={e=>setStrengthDate(e.target.value)}/></label></div><div className="previous-workout-row"><div><b>Продолжить прогресс</b><small>{strengthHistory.some(w=>w.template===template)?'Загрузить веса и повторы из последней такой тренировки':'Когда сохранишь первую тренировку, здесь появятся прошлые результаты'}</small></div><button className="outline" onClick={()=>loadPreviousWorkout()} disabled={!strengthHistory.some(w=>w.template===template)}><Clock3 size={14}/> Взять прошлую</button></div>
           <div className="strength-exercises">{draftExercises.map((ex,index)=>{const previous=strengthHistory.flatMap(w=>w.exercises.map(e=>({date:w.date,name:e.name,sets:e.sets}))).find(e=>e.name===ex.name);return <div className="strength-exercise" key={ex.id}><div className="strength-ex-head"><div><span className="exercise-index">{String(index+1).padStart(2,'0')}</span><b>{exerciseLabel(ex.name)}</b>{previous&&<small>Предыдущий раз: {previous.sets.map(st=>`${st.kg||'—'} кг × ${st.reps||'—'}`).join(' · ')}</small>}</div><button className="delete-exercise" onClick={()=>setDraftExercises(prev=>prev.filter(item=>item.id!==ex.id))} aria-label="Удалить упражнение"><Trash2 size={15}/></button></div><div className="set-table"><div className="set-header"><span>Подход</span><span>Вес, кг</span><span>Повторы</span><span>Готово</span></div>{ex.sets.map((st,i)=><div className={`set-row ${st.done?'set-complete':''}`} key={st.id}><b>{i+1}</b><input aria-label={`Вес ${ex.name}, подход ${i+1}`} type="number" min="0" step="0.5" value={st.kg} onChange={e=>updateSet(ex.id,st.id,{kg:e.target.value})} placeholder="—"/><input aria-label={`Повторы ${ex.name}, подход ${i+1}`} type="number" min="0" value={st.reps} onChange={e=>updateSet(ex.id,st.id,{reps:e.target.value})} placeholder="—"/><button className={`set-check ${st.done?'checked':''}`} onClick={()=>updateSet(ex.id,st.id,{done:!st.done})} aria-label="Отметить подход">{st.done?<Check size={15}/>:null}</button></div>)}</div><button className="add-set" onClick={()=>setDraftExercises(prev=>prev.map(item=>item.id===ex.id?{...item,sets:[...item.sets,{id:Date.now()+Math.random(),kg:'',reps:'',done:false}]}:item))}><Plus size={14}/> Добавить подход</button></div>})}</div>
           <div className="add-exercise-row"><label>Добавить упражнение<select value={newExercise} onChange={e=>setNewExercise(e.target.value as typeof exerciseLibrary[number])}>{exerciseLibrary.map(name=><option key={name} value={name}>{exerciseLabel(name)}</option>)}</select></label><button className="outline" onClick={()=>setDraftExercises(prev=>[...prev,makeExercise(newExercise)])}><Plus size={15}/> Добавить</button></div>
           <div className="strength-footer"><span>{draftExercises.reduce((n,e)=>n+e.sets.length,0)} подходов · {draftExercises.reduce((n,e)=>n+e.sets.filter(st=>st.done).length,0)} выполнено</span><button className="primary" onClick={saveStrengthWorkout}><Check size={16}/> Сохранить тренировку</button></div>
