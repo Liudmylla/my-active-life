@@ -101,8 +101,8 @@ function App() {
   const chartY = (v:number) => 100-(runMetric==='pace'?(chartMax-v)/(chartMax-chartMin||1):(v-chartMin)/(chartMax-chartMin||1))*72
   const chartPoints = chartNumbers.map((v,i)=>`${chartNumbers.length===1?50:24+i*(252/(chartNumbers.length-1))},${chartY(v)}`).join(' ')
   const selected = sessions.filter(s=>s.date===selectedDate)
-  const syncTable = async (table:string, rows:any[], conflict:string, idColumn:string, ids:number[]) => {
-    if (!supabase || !user || !cloudReady) return false
+  const syncTable = async (table:string, rows:any[], conflict:string, idColumn:string, ids:number[], allowBeforeReady=false) => {
+    if (!supabase || !user || (!cloudReady && !allowBeforeReady)) return false
     const { error: upsertError } = rows.length
       ? await supabase.from(table).upsert(rows, { onConflict: conflict })
       : { error: null }
@@ -113,9 +113,9 @@ function App() {
     if (deleteError) throw deleteError
     return true
   }
-  const withCloudSave = async (key:string, action:()=>Promise<boolean>) => {
+  const withCloudSave = async (key:string, action:()=>Promise<boolean>, allowBeforeReady=false) => {
     
-    if (!supabase || !user || !cloudReady) { setCloudStatus(user ? 'Ожидает синхронизации' : 'Локальный режим'); return }
+    if (!supabase || !user || (!cloudReady && !allowBeforeReady)) { setCloudStatus(user ? 'Ожидает синхронизации' : 'Локальный режим'); return }
     try {
       setCloudStatus('Сохраняем в облако…')
       await action()
@@ -127,18 +127,18 @@ function App() {
       setAuthMessage(`Не удалось сохранить раздел «${key}»: ${error?.message || 'ошибка сети'}. Локальная копия сохранена.`)
     }
   }
-  const saveSessionsCloud = (items:Session[]) => withCloudSave('calendar', async()=>{
+  const saveSessionsCloud = (items:Session[], allowBeforeReady=false) => withCloudSave('calendar', async()=>{
     const rows=items.map(x=>({user_id:user!.id,id:x.id,session_date:x.date||localISODate(new Date()),day_of_week:x.day,kind:x.kind,title:x.title,planned:x.planned,done:x.done,recorded_at:x.recordedAt||null,run_category:x.runCategory||null,work_type:x.workType||null,duration_minutes:x.duration||null,distance_km:x.distance||null,pace:x.pace||null,avg_hr:x.avgHr||null,calories:x.calories||null,note:x.note||null,}))
-    return syncTable('sessions',rows,'id','id',items.map(x=>x.id))
-  })
-  const saveRunningCloud = (items:RunningEntry[]) => withCloudSave('running', async()=>{
+    return syncTable('sessions',rows,'id','id',items.map(x=>x.id),allowBeforeReady)
+  },allowBeforeReady)
+  const saveRunningCloud = (items:RunningEntry[], allowBeforeReady=false) => withCloudSave('running', async()=>{
     const rows=items.map(x=>({user_id:user!.id,id:x.id,source_session_id:x.id,run_date:x.runDate,category:x.runCategory||null,work_type:x.workType||null,title:x.title,duration_minutes:x.duration||null,distance_km:x.distance||null,pace:x.pace||null,avg_hr:x.avgHr||null,calories:x.calories||null,note:x.note||null,}))
-    return syncTable('running_history',rows,'id','id',items.map(x=>x.id))
-  })
-  const saveStrengthCloud = (items:StrengthWorkout[]) => withCloudSave('strength', async()=>{
+    return syncTable('running_history',rows,'id','id',items.map(x=>x.id),allowBeforeReady)
+  },allowBeforeReady)
+  const saveStrengthCloud = (items:StrengthWorkout[], allowBeforeReady=false) => withCloudSave('strength', async()=>{
     const rows=items.map(x=>({user_id:user!.id,id:x.id,workout_date:x.date.slice(0,10),template:x.template,title:x.title,exercises:x.exercises,}))
-    return syncTable('strength_history',rows,'id','id',items.map(x=>x.id))
-  })
+    return syncTable('strength_history',rows,'id','id',items.map(x=>x.id),allowBeforeReady)
+  },allowBeforeReady)
   const saveDailyCloud = (starts:string[], logs:CycleLog[], currentWeight:string) => withCloudSave('daily', async()=>{
     const byDate=new Map<string,any>()
     for (const date of starts) byDate.set(date,{...(byDate.get(date)||{}),user_id:user!.id,entry_date:date,period_start:true})
@@ -306,9 +306,9 @@ function App() {
         if(latestWeight?.weight_kg!=null) setWeight(String(latestWeight.weight_kg))
         if(!cancelled) { setCloudReady(true);setCloudStatus('Облако синхронизировано');setAuthMessage('') }
         // Seed only tables that were empty in the cloud; never overwrite existing cloud history.
-        if(useLocalSessions) void saveSessionsCloud(finalSessions)
-        if(useLocalStrength) void saveStrengthCloud(finalStrength)
-        if(useLocalRuns) void saveRunningCloud(finalRuns)
+        if(useLocalSessions) void saveSessionsCloud(finalSessions,true)
+        if(useLocalStrength) void saveStrengthCloud(finalStrength,true)
+        if(useLocalRuns) void saveRunningCloud(finalRuns,true)
         if(useLocalStarts||useLocalLogs||!latestWeight) void saveDailyCloud(finalStarts,finalLogs,latestWeight?.weight_kg!=null?String(latestWeight.weight_kg):weight)
       } catch(error:any) { if(!cancelled){setCloudStatus('Ошибка облака');setAuthMessage(`Не удалось загрузить данные: ${error?.message||'ошибка сети'}`)} }
     }
