@@ -46,7 +46,7 @@ const normalizeStrength = (items:StrengthWorkout[]):StrengthWorkout[] => normali
 // and retain the workout as completed on 17 Nov. Safe to run repeatedly.
 const migrateLegacyStrength = (items:StrengthWorkout[]):StrengthWorkout[] =>
   normalizeStrengthBase(items.filter(w=>w.id!==1795123675574606)).map(w=>
-    w.id===1795123675574981?{...w,date:'2026-11-17'}:w
+    w.id===1795123675574981?{...w,date:'2026-11-17',calendarSessionId:w.calendarSessionId===undefined?w.id:w.calendarSessionId}:{...w,calendarSessionId:w.calendarSessionId===undefined?w.id:w.calendarSessionId}
   )
 const normalizeStrengthBase = (items:StrengthWorkout[]):StrengthWorkout[] => normalizeIds(items).map(workout=>({
   ...workout,
@@ -56,7 +56,7 @@ const normalizeStrengthBase = (items:StrengthWorkout[]):StrengthWorkout[] => nor
   })))
 }))
 const strengthSession = (workout:StrengthWorkout):Session => ({
-  id:workout.id,
+  id:workout.calendarSessionId??workout.id,
   day:(parseLocalDate(workout.date).getDay()+6)%7,
   date:workout.date,
   kind:workout.template==='lowerBody'?'Силовая · низ':workout.template==='upperBody'?'Силовая · верх':'Full Body',
@@ -68,9 +68,10 @@ const strengthSession = (workout:StrengthWorkout):Session => ({
 const linkStrengthSessions = (items:Session[],workouts:StrengthWorkout[]):Session[] => {
   const next=[...items]
   for(const workout of workouts){
+    if(workout.calendarSessionId==null) continue
     const linked=strengthSession(workout)
     const index=next.findIndex(s=>s.id===workout.id)
-    if(index>=0) next[index]={...next[index],...linked,done:true}
+    if(index>=0) next[index]={...next[index],...linked,done:next[index].done}
     else next.push(linked)
   }
   return ensureSessionDates(next)
@@ -170,7 +171,7 @@ function App() {
     return syncTable('running_history',rows,'id','id',items.map(x=>x.id),allowBeforeReady)
   },allowBeforeReady)
   const saveStrengthCloud = (items:StrengthWorkout[], allowBeforeReady=false) => withCloudSave('strength', async()=>{
-    const rows=items.map(x=>({user_id:user!.id,id:x.id,workout_date:x.date.slice(0,10),template:x.template,title:x.title,exercises:x.exercises,}))
+    const rows=items.map(x=>({user_id:user!.id,id:x.id,workout_date:x.date.slice(0,10),template:x.template,title:x.title,exercises:x.exercises,calendar_session_id:x.calendarSessionId??null,}))
     return syncTable('strength_history',rows,'id','id',items.map(x=>x.id),allowBeforeReady)
   },allowBeforeReady)
   const saveDailyCloud = (starts:string[], logs:CycleLog[], currentWeight:string, allowBeforeReady=false) => withCloudSave('daily', async()=>{
@@ -229,7 +230,7 @@ function App() {
       if(historyNext.some(r=>r.id===updated.id)){setRunningHistory(historyNext);localStorage.setItem('mal-v2-running',JSON.stringify(historyNext));void saveRunningCloud(historyNext)}
     }
     if (editingSessionId!==null && updated.kind!=='Бег') {
-      const strengthNext=strengthHistory.map(w=>w.id===updated.id?{...w,date:selectedDate,title:updated.title}:w)
+      const strengthNext=strengthHistory.map(w=>w.calendarSessionId===updated.id?{...w,date:selectedDate,title:updated.title}:w)
       if(strengthNext.some(w=>w.id===updated.id)){
         setStrengthHistory(strengthNext);localStorage.setItem('mal-v2-strength',JSON.stringify(strengthNext));void saveStrengthCloud(strengthNext)
       }
@@ -255,7 +256,14 @@ function App() {
       setRunningHistory(updated); localStorage.setItem('mal-v2-running',JSON.stringify(updated)); void saveRunningCloud(updated)
     }
   }
-  const deleteSession = (id:number) => save(sessions.filter(s=>s.id!==id))
+  const deleteSession = (id:number) => {
+    const linked=strengthHistory.some(w=>w.calendarSessionId===id)
+    if(linked){
+      const nextStrength=strengthHistory.map(w=>w.calendarSessionId===id?{...w,calendarSessionId:null}:w)
+      setStrengthHistory(nextStrength);localStorage.setItem('mal-v2-strength',JSON.stringify(nextStrength));void saveStrengthCloud(nextStrength)
+    }
+    save(sessions.filter(s=>s.id!==id))
+  }
   const updateSet = (exerciseId:number,setId:number,patch:Partial<SetEntry>) => setDraftExercises(prev=>prev.map(ex=>ex.id===exerciseId?{...ex,sets:ex.sets.map(st=>st.id===setId?{...st,...patch}:st)}:ex))
   const loadPreviousWorkout = (value=template) => {
     const previous = strengthHistory.find(w=>w.template===value)
@@ -279,7 +287,8 @@ function App() {
   }
   const saveStrengthWorkout = () => {
     const existing=sessions.find(s=>s.date===strengthDate&&s.kind===(template==='lowerBody'?'Силовая · низ':template==='upperBody'?'Силовая · верх':'Full Body')&&s.title===(workoutTitle||template))
-    const workout:StrengthWorkout={id:existing?.id??Date.now(),date:strengthDate,template,title:workoutTitle||template,exercises:draftExercises}
+    const workoutId=existing?.id??Date.now()
+    const workout:StrengthWorkout={id:workoutId,date:strengthDate,template,title:workoutTitle||template,exercises:draftExercises,calendarSessionId:workoutId}
     const next=[workout,...strengthHistory.filter(w=>w.id!==workout.id)]
     const linked=strengthSession(workout)
     const nextSessions=existing?sessions.map(s=>s.id===existing.id?linked:s):[...sessions,linked]
@@ -319,7 +328,7 @@ function App() {
         if(cancelled) return
         const cloudSessions=ensureSessionDates<Session>(normalizeIds((sess.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),day:r.day_of_week,date:r.session_date,kind:r.kind,title:r.title,planned:r.planned,done:r.done,recordedAt:r.recorded_at||undefined,runCategory:r.run_category||undefined,workType:r.work_type||undefined,duration:r.duration_minutes||undefined,distance:r.distance_km==null?undefined:Number(r.distance_km),pace:r.pace||undefined,avgHr:r.avg_hr||undefined,calories:r.calories||undefined,note:r.note||undefined} as Session))))
         const cloudRuns=normalizeIds((runs.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),day:0,date:r.run_date,kind:'Бег',done:true,planned:false,runDate:r.run_date,title:r.title,runCategory:r.category||undefined,workType:r.work_type||undefined,duration:r.duration_minutes||undefined,distance:r.distance_km==null?undefined:Number(r.distance_km),pace:r.pace||undefined,avgHr:r.avg_hr||undefined,calories:r.calories||undefined,note:r.note||undefined} as RunningEntry)))
-        const cloudStrength=migrateLegacyStrength((strength.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),date:r.workout_date,template:r.template,title:r.title,exercises:r.exercises||[]} as StrengthWorkout)))
+        const cloudStrength=migrateLegacyStrength((strength.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),date:r.workout_date,template:r.template,title:r.title,exercises:r.exercises||[],calendarSessionId:r.calendar_session_id==null?null:Number(r.calendar_session_id)} as StrengthWorkout)))
         const dailyRows=daily.data||[]
         const starts=dailyRows.filter((r:any)=>r.period_start).map((r:any)=>r.entry_date)
         const logs=dailyRows.filter((r:any)=>r.energy!=null||r.symptoms?.length||r.notes||r.cycle_phase).map((r:any)=>({id:Date.parse(r.entry_date),date:r.entry_date,energy:r.energy||3,symptoms:r.symptoms||[],note:r.notes||'',phase:r.cycle_phase||'Не отмечено'} as CycleLog))
@@ -406,7 +415,7 @@ function App() {
           <div className="strength-footer"><span>{draftExercises.reduce((n,e)=>n+e.sets.length,0)} подходов · {draftExercises.reduce((n,e)=>n+e.sets.filter(st=>st.done).length,0)} выполнено</span><button className="primary" onClick={saveStrengthWorkout}><Check size={16}/> Сохранить тренировку</button></div>
           {notice&&<div className="notice">{notice}</div>}
         </div>
-        <div className="panel"><div className="panel-title"><div><h2>История силовых</h2><p>Сохранённые тренировки и рабочие веса</p></div></div>{strengthHistory.length?strengthHistory.slice(0,8).map(w=><div className="strength-history" key={w.id}><div className="history-dot"/><div><b>{w.title}</b><small>{formatLocalDate(parseLocalDate(w.date),{day:'numeric',month:'long',year:'numeric'})} · {templateLabel(w.template)} · {w.exercises.length} упражнений</small><small>{w.exercises.map(e=>exerciseLabel(e.name)).join(' · ')}</small></div><span className="history-value">{w.exercises.reduce((n,e)=>n+e.sets.filter(st=>st.done).length,0)} подходов</span></div>):<p className="muted-text">Здесь появятся твои сохранённые силовые тренировки.</p>}</div>
+        <div className="panel"><div className="panel-title"><div><h2>История силовых</h2><p>Сохранённые тренировки и рабочие веса</p></div></div>{strengthHistory.length?strengthHistory.slice(0,8).map(w=><div className="strength-history" key={w.id}><div className="history-dot"/><div><b>{w.title}</b><small>{formatLocalDate(parseLocalDate(w.date),{day:'numeric',month:'long',year:'numeric'})} · {templateLabel(w.template)} · {w.exercises.length} упражнений</small><small>{w.exercises.map(e=>exerciseLabel(e.name)).join(' · ')}</small><small>{w.calendarSessionId==null?'Не привязана к календарю':sessions.find(s=>s.id===w.calendarSessionId)?.done?'Выполнена · связана с календарём':'В плане · связана с календарём'}</small></div><span className="history-value">{w.exercises.reduce((n,e)=>n+e.sets.filter(st=>st.done).length,0)} подходов</span></div>):<p className="muted-text">Здесь появятся твои сохранённые силовые тренировки.</p>}</div>
       </>}
       {tab==='progress' && <><section className="welcome"><div><div className="eyebrow">ТВОЯ ДИНАМИКА</div><h1>Прогресс без спешки<span>.</span></h1><p>Смотри на тенденции, а не на отдельные цифры.</p></div></section><section className="stats-grid"><div className="stat-card"><div className="stat-icon green"><Activity size={19}/></div><div className="stat-name">Выполнено тренировок</div><strong>{completed.length}</strong><div className="stat-foot">за текущую неделю</div></div><div className="stat-card"><div className="stat-icon peach"><Footprints size={19}/></div><div className="stat-name">Бег</div><strong>{totalKm.toFixed(1)} <small>км</small></strong><div className="stat-foot">за текущую неделю</div></div><div className="stat-card"><div className="stat-icon lilac"><Clock3 size={19}/></div><div className="stat-name">Активное время</div><strong>{totalMins} <small>мин</small></strong><div className="stat-foot">за текущую неделю</div></div><div className="stat-card"><div className="stat-icon rose"><HeartPulse size={19}/></div><div className="stat-name">Калории</div><strong>{totalKcal}</strong><div className="stat-foot">если данные внесены</div></div></section><div className="panel"><div className="panel-title"><div><h2>Распределение активности</h2><p>По выполненным занятиям</p></div></div><div className="distribution">{kinds.map(k=>{const n=completed.filter(s=>s.kind===k).length;return <div className="dist-row" key={k}><span>{k}</span><div className="bar"><i style={{width:`${completed.length?n/completed.length*100:0}%`}}/></div><b>{n}</b></div>})}</div></div><section className="panel run-progress-panel"><div className="panel-title"><div><h2>История бега</h2><p>Три направления — один понятный прогресс</p></div><Footprints className="muted-icon" size={20}/></div><div className="run-filter-row"><div className="run-filter">{(['Все','Лёгкий','Работа','Длительный'] as const).map(value=><button key={value} className={runCategoryFilter===value?'selected':''} onClick={()=>setRunCategoryFilter(value)}>{value}</button>)}</div><div className="run-metric"><button className={runMetric==='pace'?'selected':''} onClick={()=>setRunMetric('pace')}>Темп</button><button className={runMetric==='avgHr'?'selected':''} onClick={()=>setRunMetric('avgHr')}>Пульс</button><button className={runMetric==='distance'?'selected':''} onClick={()=>setRunMetric('distance')}>Км</button></div></div><div className="run-chart-wrap">{chartRuns.length>=1?<><div className="run-chart-summary"><b>{runMetric==='pace'?'Темп, мин/км':runMetric==='avgHr'?'Средний пульс, уд/мин':'Дистанция, км'}</b><span>{chartRuns.length} тренировок</span></div><svg className="run-chart" viewBox="0 0 300 118" role="img" aria-label="График беговых тренировок"><line x1="20" y1="100" x2="276" y2="100"/><line x1="20" y1="28" x2="276" y2="28"/><polyline points={chartPoints} fill="none" stroke="#82a487" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>{chartNumbers.map((v,i)=><circle key={i} cx={chartNumbers.length===1?50:24+i*(252/(chartNumbers.length-1))} cy={chartY(v)} r="4" fill="#fff" stroke="#739879" strokeWidth="2"/> )}</svg><div className="run-chart-labels"><span>{chartRuns[0]?.runDate?new Date(`${chartRuns[0].runDate}T12:00:00`).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}):'Раньше'}</span><span>{chartRuns[chartRuns.length-1]?.runDate?new Date(`${chartRuns[chartRuns.length-1].runDate}T12:00:00`).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}):'Последняя'}</span></div><div className="run-chart-note">{runMetric==='pace'?'Для темпа меньшее значение означает более быстрый бег.':runMetric==='avgHr'?'Сравнивай пульс при похожем темпе и условиях.':'Смотри, как меняется привычная дистанция.'}</div></>:<div className="run-empty"><div className="empty-icon"><Footprints size={21}/></div><b>Пока недостаточно данных для графика</b><p>Отметь выполненными хотя бы две пробежки с заполненным темпом, пульсом или дистанцией.</p></div>}</div><div className="run-history-list">{filteredRuns.length?filteredRuns.slice().reverse().slice(0,10).map(run=><div className="run-history-item" key={run.id}><div className={`run-history-mark ${run.runCategory==='Работа'?'quality':run.runCategory==='Длительный'?'long':''}`}><Footprints size={16}/></div><div className="run-history-main"><b>{run.title}</b><small>{run.runDate?new Date(`${run.runDate}T12:00:00`).toLocaleDateString('ru-RU',{day:'numeric',month:'long'}):'Дата не указана'} · {run.runCategory||'Бег'}{run.workType?` · ${run.workType}`:''}{run.runDate&&cycleDayForDate(run.runDate)?` · день цикла ${cycleDayForDate(run.runDate)}`:''}</small></div><div className="run-history-values"><b>{run.distance?`${run.distance} км`:'—'}</b><small>{run.pace?`${run.pace} /км`:run.avgHr?`${run.avgHr} уд/мин`:''}</small></div></div>):<p className="muted-text">В этой категории пока нет выполненных пробежек.</p>}</div></section><div className="panel"><div className="panel-title"><div><h2>Что будем отслеживать дальше</h2><p>Постепенно расширим аналитику</p></div></div><div className="feature-grid"><div><Dumbbell/><b>Силовые показатели</b><small>Рабочие веса, повторы, объём нагрузки</small></div><div><Footprints/><b>Беговая форма</b><small>Темп, пульс и дистанция в динамике</small></div><div><HeartPulse/><b>Восстановление</b><small>Самочувствие, сон и пульс</small></div></div></div></>}
       {tab==='cycle' && <>
