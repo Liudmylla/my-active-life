@@ -22,15 +22,15 @@ const initial: Session[] = [
 const makeExercise = (name:string):ExerciseEntry => ({id:Date.now()+Math.random(),name,sets:[1,2,3].map((n)=>({id:Date.now()+Math.random()+n,kg:'',reps:'',done:false}))})
 
 const freshId = (used:Set<number>) => {
-  let id=Date.now()+Math.random()
-  while(used.has(id)) id+=Math.random()+1
+  let id=Date.now()*1000+Math.floor(Math.random()*1000)
+  while(used.has(id)) id+=1
   used.add(id)
   return id
 }
 const normalizeIds = <T extends {id:number},>(items:T[]):T[] => {
   const used=new Set<number>()
   return items.map(item=>{
-    const id=typeof item.id==='number'&&Number.isFinite(item.id)&&!used.has(item.id)?(used.add(item.id),item.id):freshId(used)
+    const id=typeof item.id==='number'&&Number.isSafeInteger(item.id)&&!used.has(item.id)?(used.add(item.id),item.id):freshId(used)
     return {...item,id}
   })
 }
