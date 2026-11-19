@@ -27,7 +27,7 @@ const freshId = (used:Set<number>) => {
   used.add(id)
   return id
 }
-const normalizeIds = <T extends {id:number}>(items:T[]):T[] => {
+const normalizeIds = <T extends {id:number},>(items:T[]):T[] => {
   const used=new Set<number>()
   return items.map(item=>{
     const id=typeof item.id==='number'&&Number.isFinite(item.id)&&!used.has(item.id)?(used.add(item.id),item.id):freshId(used)
