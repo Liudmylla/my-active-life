@@ -21,6 +21,7 @@ const makeExercise = (name:string):ExerciseEntry => ({id:Date.now()+Math.random(
 function App() {
   const [sessions,setSessions] = useState<Session[]>(()=>{try { const s=localStorage.getItem('mal-sessions'); return ensureSessionDates(s?JSON.parse(s):initial) } catch { return ensureSessionDates(initial) }})
   const [tab,setTab] = useState<AppTab>('week')
+  const [menuOpen,setMenuOpen] = useState(false)
   const [runCategoryFilter,setRunCategoryFilter] = useState<'Все'|RunCategory>('Все')
   const [runMetric,setRunMetric] = useState<'pace'|'avgHr'|'distance'>('pace')
   const [selectedDate,setSelectedDate] = useState(localISODate(new Date()))
@@ -298,9 +299,10 @@ function App() {
   }
   const signOut = async () => { if (supabase) await supabase.auth.signOut(); setUser(null); setCloudReady(false); setCloudStatus('Локальный режим') }
   return <div className="app-shell">
-    <Sidebar tab={tab} onChange={setTab}/>
+    {menuOpen && <button className="sidebar-backdrop" type="button" aria-label="Закрыть меню" onClick={()=>setMenuOpen(false)}/>}
+    <Sidebar tab={tab} open={menuOpen} onChange={setTab} onClose={()=>setMenuOpen(false)}/>
     <main className="main">
-      <Topbar tab={tab} cloudReady={cloudReady} cloudStatus={cloudStatus} email={user?.email} onSignOut={signOut}/>
+      <Topbar tab={tab} cloudReady={cloudReady} cloudStatus={cloudStatus} email={user?.email} onSignOut={signOut} onOpenMenu={()=>setMenuOpen(true)}/>
       {supabase && !user && <section className="panel auth-panel"><div className="panel-title"><div><h2>Подключить личный аккаунт</h2><p>Войди по ссылке из письма — пароль не нужен.</p></div><HeartPulse className="muted-icon" size={20}/></div><div className="auth-row"><input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Твой email" aria-label="Email для входа"/><button className="primary" onClick={sendMagicLink} disabled={!authEmail.trim()}>Отправить ссылку</button></div>{authMessage && <p className="auth-message">{authMessage}</p>}<small className="auth-privacy">До входа дневник остаётся в этом браузере. После входа он будет связан с твоим личным аккаунтом Supabase.</small></section>}
       {user && <div className="account-strip">Вошла как <b>{user.email || 'личный аккаунт'}</b> · {cloudReady ? 'облачная синхронизация активна' : cloudStatus}</div>}
       {tab==='week' && <>

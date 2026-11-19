@@ -4,10 +4,10 @@ import type { LucideIcon } from 'lucide-react'
 
 export const activityKinds: Kind[] = ['Силовая · низ', 'Силовая · верх', 'Full Body', 'Бег', 'Танцы', 'Йога', 'Байк', 'Пилатес']
 export const weekdayLabels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-export const exerciseLibrary = ['Romanian Deadlift', 'Bulgarian split squat', 'Leg curl', 'Hip abduction', 'Cable kickback', 'Lat pulldown', 'Seated row', 'Face pull', 'Dumbbell bench press', 'Shoulder press', 'Goblet squat', 'Plank']
+export const exerciseLibrary = ['Romanian Deadlift', 'Bulgarian split squat', 'Leg curl','Leg press', 'Hip abduction', 'Kickback', 'Lat pulldown', 'Seated row', 'Face pull', 'Dumbbell bench press', 'Shoulder ', 'Goblet squat', 'Plank','Triceps']
 export const workoutTemplates: Record<string, string[]> = {
-  'Низ тела': ['Romanian Deadlift', 'Bulgarian split squat', 'Leg curl', 'Hip abduction'],
-  'Верх тела': ['Lat pulldown', 'Seated row', 'Face pull', 'Dumbbell bench press'],
+  'Низ тела': ['Romanian Deadlift', 'Bulgarian split squat', 'Leg curl', 'Leg press','Hip abduction','Kickback'],
+  'Верх тела': ['Lat pulldown', 'Seated row', 'Face pull', 'Dumbbell bench press', 'Shoulder extension','Triceps extension cable','Triceps extension hand behind the head','Extension laterales 45 degrees','Extension behind the head laying on the bench','biceps'],
   'Full Body': ['Romanian Deadlift', 'Goblet squat', 'Lat pulldown', 'Dumbbell bench press'],
 }
 
