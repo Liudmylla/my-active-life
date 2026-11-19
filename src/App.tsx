@@ -301,7 +301,7 @@ function App() {
     return ()=>{cancelled=true}
   },[user?.id])
 
-  useEffect(()=>{ localStorage.setItem('mal-strength-date',strengthDate); localStorage.setItem('mal-weight',weight);localStorage.setItem('mal-sessions',JSON.stringify(sessions));localStorage.setItem('mal-period-starts',JSON.stringify(periodStarts));localStorage.setItem('mal-cycle-logs',JSON.stringify(cycleLogs));localStorage.setItem('mal-strength',JSON.stringify(strengthHistory));localStorage.setItem('mal-running',JSON.stringify(runningHistory)) },[sessions,periodStarts,cycleLogs,strengthHistory,runningHistory])
+  useEffect(()=>{ localStorage.setItem('mal-strength-date',strengthDate); localStorage.setItem('mal-weight',weight);localStorage.setItem('mal-sessions',JSON.stringify(sessions));localStorage.setItem('mal-period-starts',JSON.stringify(periodStarts));localStorage.setItem('mal-cycle-logs',JSON.stringify(cycleLogs));localStorage.setItem('mal-strength',JSON.stringify(strengthHistory));localStorage.setItem('mal-running',JSON.stringify(runningHistory)) },[strengthDate,sessions,periodStarts,cycleLogs,strengthHistory,runningHistory])
   useEffect(()=>{
     if(!supabase||!user||!cloudReady) return
     const retry=()=>{
