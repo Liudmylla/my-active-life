@@ -20,8 +20,30 @@ const initial: Session[] = [
   {id:7,day:5,kind:'Бег',runCategory:'Длительный',title:'Длительный бег',planned:true,done:false,duration:80,distance:9},
 ]
 const makeExercise = (name:string):ExerciseEntry => ({id:Date.now()+Math.random(),name,sets:[1,2,3].map((n)=>({id:Date.now()+Math.random()+n,kg:'',reps:'',done:false}))})
+
+const freshId = (used:Set<number>) => {
+  let id=Date.now()+Math.random()
+  while(used.has(id)) id+=Math.random()+1
+  used.add(id)
+  return id
+}
+const normalizeIds = <T extends {id:number}>(items:T[]):T[] => {
+  const used=new Set<number>()
+  return items.map(item=>{
+    const id=typeof item.id==='number'&&Number.isFinite(item.id)&&!used.has(item.id)?(used.add(item.id),item.id):freshId(used)
+    return {...item,id}
+  })
+}
+const normalizeStrength = (items:StrengthWorkout[]):StrengthWorkout[] => normalizeIds(items).map(workout=>({
+  ...workout,
+  exercises:normalizeIds((workout.exercises||[]).map(ex=>({
+    ...ex,
+    sets:normalizeIds(ex.sets||[])
+  })))
+}))
+
 function App() {
-  const [sessions,setSessions] = useState<Session[]>(()=>{try { const s=localStorage.getItem('mal-v2-sessions'); return ensureSessionDates(s?JSON.parse(s):initial) } catch { return ensureSessionDates(initial) }})
+  const [sessions,setSessions] = useState<Session[]>(()=>{try { const s=localStorage.getItem('mal-v2-sessions'); return ensureSessionDates(normalizeIds(s?JSON.parse(s):initial)) } catch { return ensureSessionDates(initial) }})
   const [tab,setTab] = useState<AppTab>('week')
   const [menuOpen,setMenuOpen] = useState(false)
   const [runCategoryFilter,setRunCategoryFilter] = useState<'Все'|RunCategory>('Все')
@@ -48,8 +70,8 @@ function App() {
   const [cycleSymptoms,setCycleSymptoms] = useState<string[]>([])
   const [cyclePhase,setCyclePhase] = useState('Не отмечено')
   const [cycleNote,setCycleNote] = useState('')
-  const [strengthHistory,setStrengthHistory] = useState<StrengthWorkout[]>(()=>{try { return JSON.parse(localStorage.getItem('mal-v2-strength')||'[]') } catch { return [] }})
-  const [runningHistory,setRunningHistory]=useState<RunningEntry[]>(()=>{try{return JSON.parse(localStorage.getItem('mal-v2-running')||'[]')}catch{return []}})
+  const [strengthHistory,setStrengthHistory] = useState<StrengthWorkout[]>(()=>{try { return normalizeStrength(JSON.parse(localStorage.getItem('mal-v2-strength')||'[]')) } catch { return [] }})
+  const [runningHistory,setRunningHistory]=useState<RunningEntry[]>(()=>{try{return normalizeIds(JSON.parse(localStorage.getItem('mal-v2-running')||'[]'))}catch{return []}})
   const [template,setTemplate] = useState<WorkoutTemplateKey>('lowerBody')
   const [strengthDate,setStrengthDate] = useState(()=>localStorage.getItem('mal-v2-strength-date') || localISODate(new Date()))
   const [workoutTitle,setWorkoutTitle] = useState('Ноги и ягодицы')
@@ -251,16 +273,16 @@ function App() {
         ])
         for(const result of [profile,sess,runs,strength,daily]) if(result.error) throw result.error
         if(cancelled) return
-        const cloudSessions=ensureSessionDates<Session>((sess.data||[]).map((r:any)=>({id:Number(r.id),day:r.day_of_week,date:r.session_date,kind:r.kind,title:r.title,planned:r.planned,done:r.done,recordedAt:r.recorded_at||undefined,runCategory:r.run_category||undefined,workType:r.work_type||undefined,duration:r.duration_minutes||undefined,distance:r.distance_km==null?undefined:Number(r.distance_km),pace:r.pace||undefined,avgHr:r.avg_hr||undefined,calories:r.calories||undefined,note:r.note||undefined} as Session)))
-        const cloudRuns=(runs.data||[]).map((r:any)=>({id:Number(r.id),day:0,date:r.run_date,kind:'Бег',done:true,planned:false,runDate:r.run_date,title:r.title,runCategory:r.category||undefined,workType:r.work_type||undefined,duration:r.duration_minutes||undefined,distance:r.distance_km==null?undefined:Number(r.distance_km),pace:r.pace||undefined,avgHr:r.avg_hr||undefined,calories:r.calories||undefined,note:r.note||undefined} as RunningEntry))
-        const cloudStrength=(strength.data||[]).map((r:any)=>({id:Number(r.id),date:r.workout_date,template:r.template,title:r.title,exercises:r.exercises||[]} as StrengthWorkout))
+        const cloudSessions=ensureSessionDates<Session>(normalizeIds((sess.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),day:r.day_of_week,date:r.session_date,kind:r.kind,title:r.title,planned:r.planned,done:r.done,recordedAt:r.recorded_at||undefined,runCategory:r.run_category||undefined,workType:r.work_type||undefined,duration:r.duration_minutes||undefined,distance:r.distance_km==null?undefined:Number(r.distance_km),pace:r.pace||undefined,avgHr:r.avg_hr||undefined,calories:r.calories||undefined,note:r.note||undefined} as Session)))
+        const cloudRuns=normalizeIds((runs.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),day:0,date:r.run_date,kind:'Бег',done:true,planned:false,runDate:r.run_date,title:r.title,runCategory:r.category||undefined,workType:r.work_type||undefined,duration:r.duration_minutes||undefined,distance:r.distance_km==null?undefined:Number(r.distance_km),pace:r.pace||undefined,avgHr:r.avg_hr||undefined,calories:r.calories||undefined,note:r.note||undefined} as RunningEntry))
+        const cloudStrength=normalizeStrength((strength.data||[]).map((r:any)=>({id:r.id==null?NaN:Number(r.id),date:r.workout_date,template:r.template,title:r.title,exercises:r.exercises||[]} as StrengthWorkout))
         const dailyRows=daily.data||[]
         const starts=dailyRows.filter((r:any)=>r.period_start).map((r:any)=>r.entry_date)
         const logs=dailyRows.filter((r:any)=>r.energy!=null||r.symptoms?.length||r.notes||r.cycle_phase).map((r:any)=>({id:Date.parse(r.entry_date),date:r.entry_date,energy:r.energy||3,symptoms:r.symptoms||[],note:r.notes||'',phase:r.cycle_phase||'Не отмечено'} as CycleLog))
         // Cloud is authoritative once the new tables have been populated; empty tables are seeded from local data once.
-        const localSessions=JSON.parse(localStorage.getItem('mal-v2-sessions')||'[]') as Session[]
-        const localStrength=JSON.parse(localStorage.getItem('mal-v2-strength')||'[]') as StrengthWorkout[]
-        const localRuns=JSON.parse(localStorage.getItem('mal-v2-running')||'[]') as RunningEntry[]
+        const localSessions=normalizeIds(JSON.parse(localStorage.getItem('mal-v2-sessions')||'[]') as Session[])
+        const localStrength=normalizeStrength(JSON.parse(localStorage.getItem('mal-v2-strength')||'[]') as StrengthWorkout[])
+        const localRuns=normalizeIds(JSON.parse(localStorage.getItem('mal-v2-running')||'[]') as RunningEntry[])
         const localStarts=JSON.parse(localStorage.getItem('mal-v2-period-starts')||'[]') as string[]
         const localLogs=JSON.parse(localStorage.getItem('mal-v2-cycle-logs')||'[]') as CycleLog[]
         
