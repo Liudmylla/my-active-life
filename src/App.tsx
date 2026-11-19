@@ -110,7 +110,7 @@ function App() {
     return syncTable('sessions',rows,'id','id',items.map(x=>x.id))
   })
   const saveRunningCloud = (items:RunningEntry[]) => withCloudSave('running', async()=>{
-    const rows=items.map(x=>({user_id:user!.id,id:x.id,run_date:x.runDate,category:x.runCategory||null,work_type:x.workType||null,title:x.title,duration_minutes:x.duration||null,distance_km:x.distance||null,pace:x.pace||null,avg_hr:x.avgHr||null,calories:x.calories||null,note:x.note||null,}))
+    const rows=items.map(x=>({user_id:user!.id,id:x.id,source_session_id:x.id,run_date:x.runDate,category:x.runCategory||null,work_type:x.workType||null,title:x.title,duration_minutes:x.duration||null,distance_km:x.distance||null,pace:x.pace||null,avg_hr:x.avgHr||null,calories:x.calories||null,note:x.note||null,}))
     return syncTable('running_history',rows,'id','id',items.map(x=>x.id))
   })
   const saveStrengthCloud = (items:StrengthWorkout[]) => withCloudSave('strength', async()=>{
@@ -120,7 +120,7 @@ function App() {
   const saveDailyCloud = (starts:string[], logs:CycleLog[], currentWeight:string) => withCloudSave('daily', async()=>{
     const byDate=new Map<string,any>()
     for (const date of starts) byDate.set(date,{...(byDate.get(date)||{}),user_id:user!.id,entry_date:date,period_start:true})
-    for (const log of logs) byDate.set(log.date,{...(byDate.get(log.date)||{}),user_id:user!.id,entry_date:log.date,energy:log.energy,symptoms:log.symptoms,notes:log.note||null,cycle_phase:log.phase||null,legacy_data:log})
+    for (const log of logs) byDate.set(log.date,{...(byDate.get(log.date)||{}),user_id:user!.id,entry_date:log.date,energy:log.energy,symptoms:log.symptoms,notes:log.note||null,cycle_phase:log.phase||null,})
     const normalized=currentWeight.trim().replace(',','.')
     if (/^\d+(\.\d+)?$/.test(normalized)) {
       const date=localISODate(new Date())
@@ -268,7 +268,7 @@ function App() {
         const useLocalStrength=!cloudStrength.length&&!!localStrength.length
         const useLocalRuns=!cloudRuns.length&&!!localRuns.length
         const finalSessions: Session[]=ensureSessionDates<Session>(useLocalSessions?localSessions!:cloudSessions)
-        if(!useLocalSessions && (sess.data||[]).some((row:any)=>!row.legacy_data?.date)) localStorage.setItem('mal-v2-pending-calendar','1')
+        
         const finalStrength=useLocalStrength?localStrength!:cloudStrength
         const finalRuns=useLocalRuns?localRuns!:cloudRuns
         const useLocalStarts=!starts.length&&!!localStarts.length
