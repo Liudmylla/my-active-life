@@ -35,3 +35,31 @@
 
 .strength-top{grid-template-columns:1fr 1.4fr 1fr}
 @media(max-width:700px){.strength-top{grid-template-columns:1fr}}
+
+/* Layout fixes: keep navigation and dialogs scrollable on short screens */
+.sidebar {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  min-height: 0;
+}
+.side-bottom {
+  flex-shrink: 0;
+}
+.modal-backdrop {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal {
+  max-height: calc(100vh - 36px);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.form-three {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.form-three label:last-child {
+  grid-column: 1 / -1;
+}
