@@ -53,6 +53,8 @@ The interface is available in Russian and French (switcher at the bottom of the 
 - Strength workouts save to `strength_history` only. Any workout in Diary → Strength history can be opened, edited and saved back in place (no duplicate is created).
 - Cycle dates and daily wellbeing save to `daily_data`; updates merge with existing date rows so fields not currently shown in the interface are preserved.
 - Current weight is saved as a dated snapshot in `daily_data`.
+- Saves only insert or update rows. A cloud row is deleted only when you delete that record in the app; the deletion is remembered and retried if you are offline. A device with incomplete data can no longer remove records.
+- Records deleted on another device are not re-uploaded: each device remembers which ids it has already seen in the cloud.
 - Local changes are written immediately to browser storage. Each cloud section has its own pending marker and retries on reconnection. The strength workout being filled in is also kept locally, so reloading the page mid-workout does not lose entered sets.
 
 Keep browser storage until you have confirmed that the account has synchronized successfully.

@@ -6,41 +6,42 @@ import { normalizeRuns, normalizeSessions, normalizeStrength } from '../domain/r
 
 type Row = Record<string, any>
 
-/**
- * Upserts `rows` and removes the user's rows whose id is not in `ids`,
- * so the cloud table mirrors the full local list.
- */
-const mirrorTable = async (client: SupabaseClient, userId: string, table: string, rows: Row[], ids: number[]) => {
-  if (rows.length) {
-    const { error } = await client.from(table).upsert(rows, { onConflict: 'id' })
-    if (error) throw error
-  }
-  let deletion = client.from(table).delete().eq('user_id', userId)
-  if (ids.length) deletion = deletion.not('id', 'in', `(${ids.join(',')})`)
-  const { error } = await deletion
+export const recordTables = { calendar: 'sessions', running: 'running_history', strength: 'strength_history' } as const
+
+/** Never deletes: rows missing from `rows` are left untouched in the cloud. */
+const upsertRows = async (client: SupabaseClient, table: string, rows: Row[]) => {
+  if (!rows.length) return
+  const { error } = await client.from(table).upsert(rows, { onConflict: 'id' })
+  if (error) throw error
+}
+
+/** Removes only the given ids, i.e. records the user explicitly deleted. */
+export const deleteRows = async (client: SupabaseClient, userId: string, table: string, ids: number[]) => {
+  if (!ids.length) return
+  const { error } = await client.from(table).delete().eq('user_id', userId).in('id', ids)
   if (error) throw error
 }
 
 export const saveSessions = (client: SupabaseClient, userId: string, items: Session[]) =>
-  mirrorTable(client, userId, 'sessions', items.map(x => ({
+  upsertRows(client, 'sessions', items.map(x => ({
     user_id: userId, id: x.id, session_date: x.date || localISODate(new Date()), day_of_week: x.day, kind: x.kind, title: x.title,
     planned: x.planned, done: x.done, recorded_at: x.recordedAt || null, run_category: x.runCategory || null, work_type: x.workType || null,
     duration_minutes: x.duration || null, distance_km: x.distance || null, pace: x.pace || null, avg_hr: x.avgHr || null,
     calories: x.calories || null, note: x.note || null,
-  })), items.map(x => x.id))
+  })))
 
 export const saveRunning = (client: SupabaseClient, userId: string, items: RunningEntry[]) =>
-  mirrorTable(client, userId, 'running_history', items.map(x => ({
+  upsertRows(client, 'running_history', items.map(x => ({
     user_id: userId, id: x.id, source_session_id: x.id, run_date: x.runDate, category: x.runCategory || null, work_type: x.workType || null,
     title: x.title, duration_minutes: x.duration || null, distance_km: x.distance || null, pace: x.pace || null, avg_hr: x.avgHr || null,
     calories: x.calories || null, note: x.note || null,
-  })), items.map(x => x.id))
+  })))
 
 export const saveStrength = (client: SupabaseClient, userId: string, items: StrengthWorkout[]) =>
-  mirrorTable(client, userId, 'strength_history', items.map(x => ({
+  upsertRows(client, 'strength_history', items.map(x => ({
     user_id: userId, id: x.id, workout_date: x.date.slice(0, 10), template: x.template, title: x.title,
     exercises: x.exercises, calendar_session_id: x.calendarSessionId ?? null,
-  })), items.map(x => x.id))
+  })))
 
 /** Merges with existing date rows so a cycle edit never erases body metrics (or vice versa). */
 export const saveDaily = async (client: SupabaseClient, userId: string, starts: string[], logs: CycleLog[], weight: string) => {

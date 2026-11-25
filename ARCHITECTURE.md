@@ -36,7 +36,9 @@ Adding a language: copy `src/i18n/locales/ru.ts` to a new file typed as `Message
 translate it, and register it in `languages` in `src/i18n/index.tsx`.
 
 ## Sync
-Every change is written to localStorage immediately, then saved to the touched Supabase table.
+Every change is written to localStorage immediately, then upserted to the touched Supabase table.
+Cloud rows are deleted only by id, for records the user deleted (`pendingDeletes`). `syncedIds`
+remembers which ids this device has seen in the cloud, so records deleted elsewhere are not re-uploaded.
 Saves are serialized per table. A failed save marks the section as pending; pending sections
 are retried when the browser comes back online and are preferred over cloud data on the next load.
 

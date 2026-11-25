@@ -4,8 +4,9 @@ import type { CloudSection, CloudStatus, CycleLog, RunningEntry, Session, Streng
 import { isStrengthKind, templateForKind } from '../constants/activities'
 import { normalizeCycleLog } from '../domain/legacy'
 import { initialSessions, linkStrengthSessions, mergeRecords, newId, normalizeRuns, normalizeSessions, normalizeStrength, strengthSession } from '../domain/records'
-import { loadSnapshot, saveDaily, saveRunning, saveSessions, saveStrength } from '../cloud/sync'
-import { pendingSections, readJSON, storageKeys, writeJSON } from '../storage/local'
+import { deleteRows, loadSnapshot, recordTables, saveDaily, saveRunning, saveSessions, saveStrength } from '../cloud/sync'
+import { pendingDeletes, pendingSections, readJSON, storageKeys, syncedIds, writeJSON } from '../storage/local'
+import type { RecordSection } from '../storage/local'
 import { localISODate, parseLocalDate } from '../utils/dates'
 import type { AuthUser } from './useAuth'
 
@@ -41,11 +42,55 @@ const readLocal = (): JournalData => {
   }
 }
 
-const savers: Record<CloudSection, (userId: string, d: JournalData) => Promise<void>> = {
-  calendar: (userId, d) => saveSessions(supabase!, userId, d.sessions),
-  running: (userId, d) => saveRunning(supabase!, userId, d.runs),
-  strength: (userId, d) => saveStrength(supabase!, userId, d.strength),
-  daily: (userId, d) => saveDaily(supabase!, userId, d.periodStarts, d.cycleLogs, d.weight),
+const recordLists: Record<RecordSection, (d: JournalData) => { id: number }[]> = {
+  calendar: d => d.sessions,
+  running: d => d.runs,
+  strength: d => d.strength,
+}
+
+/**
+ * Upserts the section, then deletes only the ids the user explicitly removed.
+ * Records absent from this device are never deleted from the cloud.
+ */
+const pushSection = async (section: CloudSection, userId: string, d: JournalData) => {
+  if (section === 'daily') return saveDaily(supabase!, userId, d.periodStarts, d.cycleLogs, d.weight)
+  const deletes = pendingDeletes.all(section)
+  const drop = new Set(deletes)
+  const keep = <T extends { id: number }>(items: T[]) => items.filter(item => !drop.has(item.id))
+  if (section === 'calendar') await saveSessions(supabase!, userId, keep(d.sessions))
+  if (section === 'running') await saveRunning(supabase!, userId, keep(d.runs))
+  if (section === 'strength') await saveStrength(supabase!, userId, keep(d.strength))
+  syncedIds.add(section, keep(recordLists[section](d)).map(r => r.id))
+  if (deletes.length) {
+    await deleteRows(supabase!, userId, recordTables[section], deletes)
+    pendingDeletes.remove(section, deletes)
+    syncedIds.remove(section, deletes)
+  }
+}
+
+/**
+ * Merges local and cloud records by id:
+ * - shared records: cloud wins unless this device has unsynced edits (`pending`);
+ * - local-only records: kept if never synced (created offline), dropped if they were
+ *   synced before (deleted on another device);
+ * - records deleted here but not yet in the cloud stay hidden.
+ */
+const mergeSection = <T extends { id: number }>(section: RecordSection, local: T[], cloud: T[], pending: boolean) => {
+  const cloudIds = new Set(cloud.map(r => r.id))
+  const deleted = new Set(pendingDeletes.all(section))
+  const synced = new Set(syncedIds.all(section))
+  // First load with this version: nothing is known yet, so keep the previous rules
+  // (calendar trusts a non-empty cloud, histories keep local records and local edits).
+  const firstSync = !syncedIds.known(section)
+  const localWins = pending || (firstSync && section !== 'calendar')
+  const keepLocal = local.filter(r => cloudIds.has(r.id) ? localWins
+    : firstSync ? section !== 'calendar' || cloud.length === 0
+      : !synced.has(r.id))
+  syncedIds.set(section, [...cloudIds])
+  return {
+    merged: mergeRecords(keepLocal, cloud).filter(r => !deleted.has(r.id)),
+    needsUpload: pending || deleted.size > 0 || keepLocal.some(r => !cloudIds.has(r.id)),
+  }
 }
 
 const errorMessage = (error: unknown) => (error as { message?: string })?.message || ''
@@ -73,7 +118,7 @@ export function useJournal(user: AuthUser | null) {
     localStorage.setItem(storageKeys.weight, data.weight)
   }, [data])
 
-  /** Saves are serialized per section; each one mirrors the full list it captured, so the last one wins. */
+  /** Saves are serialized per section, so the last captured snapshot is written last. */
   const cloudSave = useCallback((section: CloudSection, snapshot: JournalData, allowBeforeReady = false) => {
     const current = userRef.current
     if (!supabase || !current) { setCloudStatus('local'); return }
@@ -82,7 +127,7 @@ export function useJournal(user: AuthUser | null) {
       if (userRef.current?.id !== current.id) return
       try {
         setCloudStatus('saving')
-        await savers[section](current.id, snapshot)
+        await pushSection(section, current.id, snapshot)
         pendingSections.remove(section)
         setCloudStatus('saved')
         setCloudError(null)
@@ -113,16 +158,14 @@ export function useJournal(user: AuthUser | null) {
       if (cancelled) return
       const local = latest.current
       const pending = pendingSections.all()
-      // Sessions and daily data: cloud is authoritative unless it is empty or local has unsynced edits.
-      const useLocalSessions = (!cloud.sessions.length || pending.includes('calendar')) && local.sessions.length > 0
       const useLocalDaily = (!cloud.periodStarts.length && !cloud.cycleLogs.length) || pending.includes('daily')
-      // Histories are merged by id; local wins for records present on both sides.
-      const strength = mergeRecords(local.strength, cloud.strength)
-      const runs = mergeRecords(local.runs, cloud.runs)
+      const strength = mergeSection('strength', local.strength, cloud.strength, pending.includes('strength'))
+      const runs = mergeSection('running', local.runs, cloud.runs, pending.includes('running'))
+      const sessions = mergeSection('calendar', local.sessions, cloud.sessions, pending.includes('calendar'))
       const next: JournalData = {
-        sessions: linkStrengthSessions(useLocalSessions ? local.sessions : cloud.sessions, strength),
-        strength,
-        runs,
+        sessions: linkStrengthSessions(sessions.merged, strength.merged),
+        strength: strength.merged,
+        runs: runs.merged,
         periodStarts: useLocalDaily && local.periodStarts.length ? local.periodStarts : cloud.periodStarts,
         cycleLogs: useLocalDaily && local.cycleLogs.length ? local.cycleLogs : cloud.cycleLogs,
         weight: pending.includes('daily') ? local.weight : cloud.latestWeight ?? local.weight,
@@ -133,9 +176,9 @@ export function useJournal(user: AuthUser | null) {
       setCloudReady(true)
       setCloudStatus('synced')
       setCloudError(null)
-      if (useLocalSessions || strength.some(w => w.calendarSessionId != null)) cloudSave('calendar', next, true)
-      if (strength.length) cloudSave('strength', next, true)
-      if (runs.length) cloudSave('running', next, true)
+      if (sessions.needsUpload || strength.merged.some(w => w.calendarSessionId != null)) cloudSave('calendar', next, true)
+      if (strength.needsUpload) cloudSave('strength', next, true)
+      if (runs.needsUpload) cloudSave('running', next, true)
       if (useLocalDaily || !cloud.latestWeight) cloudSave('daily', next, true)
     }).catch(error => {
       if (cancelled) return
@@ -201,6 +244,7 @@ export function useJournal(user: AuthUser | null) {
 
   const deleteSession = (id: number) => {
     const { sessions, strength } = latest.current
+    pendingDeletes.add('calendar', [id])
     const patch: Partial<JournalData> = { sessions: sessions.filter(s => s.id !== id) }
     const touched: CloudSection[] = ['calendar']
     if (strength.some(w => w.calendarSessionId === id)) {
@@ -240,14 +284,18 @@ export function useJournal(user: AuthUser | null) {
     return workout
   }
 
-  const deleteStrengthWorkout = (id: number) =>
+  const deleteStrengthWorkout = (id: number) => {
+    pendingDeletes.add('strength', [id])
     commit({ strength: latest.current.strength.filter(w => w.id !== id) }, ['strength'])
+  }
 
   const updateRun = (entry: RunningEntry) =>
     commit({ runs: latest.current.runs.map(r => r.id === entry.id ? { ...entry, date: entry.runDate, day: (parseLocalDate(entry.runDate).getDay() + 6) % 7 } : r) }, ['running'])
 
-  const deleteRun = (id: number) =>
+  const deleteRun = (id: number) => {
+    pendingDeletes.add('running', [id])
     commit({ runs: latest.current.runs.filter(r => r.id !== id) }, ['running'])
+  }
 
   const addPeriodStart = (date: string) =>
     commit({ periodStarts: Array.from(new Set([...latest.current.periodStarts, date])).sort() }, ['daily'])
