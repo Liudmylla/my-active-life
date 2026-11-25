@@ -1,8 +1,8 @@
 import type { CyclePhase, Kind, RunCategory, Symptom, WorkType, WorkoutTemplateKey } from '../types'
-import { Activity, Dumbbell, Footprints, Leaf, Waves } from 'lucide-react'
+import { Activity, Dumbbell, Footprints, Leaf, Snowflake, Waves } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-export const activityKinds: Kind[] = ['strengthLower', 'strengthUpper', 'fullBody', 'run', 'dance', 'yoga', 'bike', 'pilates']
+export const activityKinds: Kind[] = ['strengthLower', 'strengthUpper', 'fullBody', 'run', 'dance', 'yoga', 'bike', 'pilates', 'coldBath']
 export const strengthKinds: Kind[] = ['strengthLower', 'strengthUpper', 'fullBody']
 export const runCategories: RunCategory[] = ['easy', 'long', 'quality']
 export const workTypes: WorkType[] = ['intervals', 'repeats', 'tempo']
@@ -28,5 +28,6 @@ export const kindForTemplate = (template: WorkoutTemplateKey): Kind =>
 export const iconFor = (kind: Kind): LucideIcon =>
   isStrengthKind(kind) ? Dumbbell
     : kind === 'run' ? Footprints
+      : kind === 'coldBath' ? Snowflake
       : kind === 'yoga' || kind === 'pilates' ? Leaf
         : kind === 'bike' ? Activity : Waves

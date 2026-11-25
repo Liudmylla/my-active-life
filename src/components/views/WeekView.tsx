@@ -66,7 +66,7 @@ export default function WeekView({ journal, weekSessions, selectedDate, weekStar
               <div className="session-icon"><Icon size={19}/></div>
               <div className="session-main">
                 <div className="session-title">{sessionTitle(s)}</div>
-                <div className="session-meta">{kindLabel}{s.duration ? ` · ${s.duration} ${t.common.min}` : ''}{s.distance ? ` · ${s.distance} ${t.common.km}` : ''}</div>
+                <div className="session-meta">{kindLabel}{s.duration ? ` · ${s.duration} ${t.common.min}` : ''}{s.distance ? ` · ${s.distance} ${t.common.km}` : ''}{s.waterTemp != null ? ` · ${s.waterTemp} ${t.common.celsius}` : ''}</div>
                 {s.done && s.kind === 'run' && <div className="run-detail">{s.pace && <span>{t.week.pace(s.pace)}</span>}{s.avgHr && <span>{t.week.hr(s.avgHr)}</span>}{s.calories && <span>{s.calories} {t.common.kcal}</span>}</div>}
               </div>
               <div className="session-actions">

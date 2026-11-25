@@ -14,6 +14,11 @@ const toNumber = (value: string) => {
   return value.trim() && Number.isFinite(n) && n > 0 ? n : undefined
 }
 const toText = (value?: number) => value == null ? '' : String(value)
+/** Unlike other fields, 0 °C and negative values are valid temperatures. */
+const toTemperature = (value: string) => {
+  const n = Number(value.replace(',', '.'))
+  return value.trim() && Number.isFinite(n) ? n : undefined
+}
 
 export default function SessionModal({ mode, initial, onSave, onClose }: Props) {
   const { t, sessionTitle } = useI18n()
@@ -27,6 +32,7 @@ export default function SessionModal({ mode, initial, onSave, onClose }: Props) 
   const [pace, setPace] = useState(initial.pace ?? '')
   const [hr, setHr] = useState(toText(initial.avgHr))
   const [calories, setCalories] = useState(toText(initial.calories))
+  const [waterTemp, setWaterTemp] = useState(toText(initial.waterTemp))
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -35,6 +41,7 @@ export default function SessionModal({ mode, initial, onSave, onClose }: Props) 
   }, [onClose])
 
   const isRun = kind === 'run'
+  const isColdBath = kind === 'coldBath'
   const submit = (e: FormEvent) => {
     e.preventDefault()
     onSave({
@@ -45,7 +52,8 @@ export default function SessionModal({ mode, initial, onSave, onClose }: Props) 
       distance: isRun ? toNumber(distance) : undefined,
       pace: isRun ? pace.trim() || undefined : undefined,
       avgHr: isRun ? toNumber(hr) : undefined,
-      calories: toNumber(calories),
+      calories: isColdBath ? undefined : toNumber(calories),
+      waterTemp: isColdBath ? toTemperature(waterTemp) : undefined,
     })
   }
   const heading = mode === 'new' ? t.sessionModal.newTitle : mode === 'run' ? t.sessionModal.editRunTitle : t.sessionModal.editTitle
@@ -65,6 +73,10 @@ export default function SessionModal({ mode, initial, onSave, onClose }: Props) 
         <label>{t.sessionModal.runCategory}<select value={runCategory} onChange={e => setRunCategory(e.target.value as RunCategory)}>{runCategories.map(c => <option key={c} value={c}>{t.runCategories[c]}</option>)}</select></label>
         {runCategory === 'quality' && <label>{t.sessionModal.workType}<select value={workType} onChange={e => setWorkType(e.target.value as WorkType)}>{workTypes.map(w => <option key={w} value={w}>{t.workTypes[w]}</option>)}</select></label>}
       </div>}
+      {isColdBath ? <div className="form-two">
+        <label>{t.sessionModal.timeInWater}<input type="number" min="0" step="1" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)} placeholder="3"/></label>
+        <label>{t.sessionModal.waterTemp}<input type="number" step="0.5" inputMode="decimal" value={waterTemp} onChange={e => setWaterTemp(e.target.value)} placeholder="6"/></label>
+      </div> : <>
       <label>{t.sessionModal.title}<input value={title} onChange={e => setTitle(e.target.value)} placeholder={placeholder}/></label>
       <div className="form-two">
         <label>{t.sessionModal.duration}<input type="number" min="0" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)}/></label>
@@ -77,6 +89,7 @@ export default function SessionModal({ mode, initial, onSave, onClose }: Props) 
         <label>{t.sessionModal.hr}<input type="number" min="0" value={hr} onChange={e => setHr(e.target.value)} placeholder="140"/></label>
         <label>{t.sessionModal.calories}<input type="number" min="0" value={calories} onChange={e => setCalories(e.target.value)} placeholder="—"/></label>
       </div>}
+      </>}
       <div className="modal-actions">
         <button type="button" className="outline" onClick={onClose}>{t.common.cancel}</button>
         <button type="submit" className="primary"><Check size={16}/> {mode === 'new' ? t.sessionModal.saveNew : t.sessionModal.saveEdit}</button>

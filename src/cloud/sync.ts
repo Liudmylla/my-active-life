@@ -28,6 +28,8 @@ export const saveSessions = (client: SupabaseClient, userId: string, items: Sess
     planned: x.planned, done: x.done, recorded_at: x.recordedAt || null, run_category: x.runCategory || null, work_type: x.workType || null,
     duration_minutes: x.duration || null, distance_km: x.distance || null, pace: x.pace || null, avg_hr: x.avgHr || null,
     calories: x.calories || null, note: x.note || null,
+    // Sent only for cold baths so the calendar keeps syncing before the column migration is applied.
+    ...(x.kind === 'coldBath' ? { water_temp_c: x.waterTemp ?? null } : {}),
   })))
 
 export const saveRunning = (client: SupabaseClient, userId: string, items: RunningEntry[]) =>
@@ -99,7 +101,7 @@ export const loadSnapshot = async (client: SupabaseClient, userId: string, email
       id: r.id == null ? NaN : Number(r.id), day: r.day_of_week, date: r.session_date, kind: r.kind, title: r.title, planned: r.planned,
       done: r.done, recordedAt: r.recorded_at || undefined, runCategory: r.run_category || undefined, workType: r.work_type || undefined,
       duration: r.duration_minutes || undefined, distance: num(r.distance_km), pace: r.pace || undefined, avgHr: r.avg_hr || undefined,
-      calories: r.calories || undefined, note: r.note || undefined,
+      calories: r.calories || undefined, waterTemp: num(r.water_temp_c), note: r.note || undefined,
     } as Session))),
     runs: normalizeRuns((runs.data || []).map((r: Row) => ({
       id: r.id == null ? NaN : Number(r.id), day: 0, date: r.run_date, kind: 'run', done: true, planned: false, runDate: r.run_date,
