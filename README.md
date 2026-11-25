@@ -31,6 +31,14 @@ This removes the old optional `session_id` foreign-key column from `running_hist
 
 Do not rerun the original migration unless you are intentionally setting up a fresh project. The original script is included as `supabase/001_create_and_migrate.sql` for reference and backup.
 
+### Cold bath activity — one additive SQL step
+
+The "Cold bath" activity stores the water temperature in a new column. In Supabase Dashboard → SQL Editor, run:
+
+`supabase/migrations/20261125_cold_bath_water_temp.sql`
+
+It only adds `sessions.water_temp_c`; no data is changed. Until it is run, every other activity keeps syncing, but saving a cold bath to the cloud fails with a "column not found" message (it is still kept locally).
+
 ## Authentication and environment
 
 The `.env.local` file contains the browser-side Supabase URL and publishable key for this project. These are intended for client use; never put a Supabase secret/service-role key in this Vite app. Add your local and production app URLs to Supabase Authentication → URL Configuration → Redirect URLs.

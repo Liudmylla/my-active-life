@@ -21,7 +21,7 @@ type ModalState = { mode: SessionModalMode; initial: SessionDraft; sessionId: nu
 
 const draftFrom = (s: Session, date: string): SessionDraft => ({
   kind: s.kind, date, title: s.title, runCategory: s.runCategory, workType: s.workType,
-  duration: s.duration, distance: s.distance, pace: s.pace, avgHr: s.avgHr, calories: s.calories,
+  duration: s.duration, distance: s.distance, pace: s.pace, avgHr: s.avgHr, calories: s.calories, waterTemp: s.waterTemp,
 })
 
 function App() {

@@ -20,7 +20,7 @@ type JournalData = {
 }
 export type CloudError = { section: CloudSection | 'load'; message: string }
 /** Fields edited in the activity form. */
-export type SessionDraft = Pick<Session, 'kind' | 'title' | 'runCategory' | 'workType' | 'duration' | 'distance' | 'pace' | 'avgHr' | 'calories'> & { date: string }
+export type SessionDraft = Pick<Session, 'kind' | 'title' | 'runCategory' | 'workType' | 'duration' | 'distance' | 'pace' | 'avgHr' | 'calories' | 'waterTemp'> & { date: string }
 export type StrengthDraft = {
   workoutId: number | null
   calendarSessionId: number | null

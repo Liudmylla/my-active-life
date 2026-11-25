@@ -1,4 +1,4 @@
-export type Kind = 'strengthLower' | 'strengthUpper' | 'fullBody' | 'run' | 'dance' | 'yoga' | 'bike' | 'pilates'
+export type Kind = 'strengthLower' | 'strengthUpper' | 'fullBody' | 'run' | 'dance' | 'yoga' | 'bike' | 'pilates' | 'coldBath'
 export type RunCategory = 'easy' | 'long' | 'quality'
 export type WorkType = 'intervals' | 'repeats' | 'tempo'
 export type CyclePhase = 'none' | 'menstrual' | 'follicular' | 'ovulatory' | 'luteal' | 'unsure'
@@ -23,6 +23,8 @@ export type Session = {
   pace?: string
   avgHr?: number
   calories?: number
+  /** Water temperature in °C (cold bath only). */
+  waterTemp?: number
   note?: string
 }
 
