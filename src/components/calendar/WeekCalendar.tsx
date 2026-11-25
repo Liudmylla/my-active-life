@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Session } from '../../types'
-import { addDays, formatWeek, localISODate, parseLocalDate, startOfWeek } from '../../utils/dates'
+import { useI18n } from '../../i18n'
+import { addDays, localISODate, parseLocalDate, startOfWeek } from '../../utils/dates'
 
 type Props = {
   sessions: Session[]
@@ -10,16 +11,14 @@ type Props = {
   onChangeWeek: (date: string) => void
 }
 
-const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-
 export default function WeekCalendar({ sessions, selectedDate, weekStart, onSelectDate, onChangeWeek }: Props) {
+  const { t, formatDate } = useI18n()
   const monday = parseLocalDate(weekStart)
   const today = localISODate(new Date())
-  const days = weekdays.map((label, index) => {
+  const days = t.calendar.weekdays.map((label, index) => {
     const date = addDays(monday, index)
     const iso = localISODate(date)
-    const daySessions = sessions.filter(session => session.date === iso)
-    return { label, date, iso, daySessions }
+    return { label, date, iso, daySessions: sessions.filter(session => session.date === iso) }
   })
   const selected = parseLocalDate(selectedDate)
   const shiftWeek = (amount: number) => {
@@ -29,18 +28,18 @@ export default function WeekCalendar({ sessions, selectedDate, weekStart, onSele
     onSelectDate(localISODate(addDays(nextMonday, offset)))
   }
   const goToToday = () => {
-    const nextMonday = startOfWeek(new Date())
-    onChangeWeek(localISODate(nextMonday))
+    onChangeWeek(localISODate(startOfWeek(new Date())))
     onSelectDate(today)
   }
+  const range = `${formatDate(monday, { day: 'numeric', month: 'short' })} — ${formatDate(addDays(monday, 6), { day: 'numeric', month: 'short' })}`
 
   return <>
     <section className="week-head">
-      <div><h2>План и факт</h2><p>{formatWeek(monday)} · неделя в движении</p></div>
+      <div><h2>{t.calendar.title}</h2><p>{t.calendar.subtitle(range)}</p></div>
       <div className="week-arrows">
-        <button aria-label="Предыдущая неделя" onClick={() => shiftWeek(-1)}><ChevronLeft size={18}/></button>
-        <button className="today-button" onClick={goToToday}>Сегодня</button>
-        <button aria-label="Следующая неделя" onClick={() => shiftWeek(1)}><ChevronRight size={18}/></button>
+        <button aria-label={t.calendar.prevWeek} onClick={() => shiftWeek(-1)}><ChevronLeft size={18}/></button>
+        <button className="today-button" onClick={goToToday}>{t.calendar.today}</button>
+        <button aria-label={t.calendar.nextWeek} onClick={() => shiftWeek(1)}><ChevronRight size={18}/></button>
       </div>
     </section>
     <section className="day-strip">

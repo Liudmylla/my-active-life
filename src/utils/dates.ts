@@ -19,13 +19,8 @@ export const addDays = (date: Date, days: number): Date => {
   return result
 }
 
-export const formatLocalDate = (date: Date, options: Intl.DateTimeFormatOptions): string =>
-  date.toLocaleDateString('ru-RU', options)
-
-export const formatWeek = (monday: Date): string => {
-  const sunday = addDays(monday, 6)
-  return `${formatLocalDate(monday, { day: 'numeric', month: 'short' })} — ${formatLocalDate(sunday, { day: 'numeric', month: 'short' })}`
-}
+export const daysBetween = (from: string, to: string) =>
+  Math.round((parseLocalDate(to).getTime() - parseLocalDate(from).getTime()) / 86400000)
 
 /** Assign a real local calendar date to legacy weekday-only entries. */
 export const ensureSessionDates = <T extends { day: number; date?: string }>(items: T[]): T[] => {
