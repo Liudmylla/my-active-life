@@ -33,16 +33,27 @@ Do not rerun the original migration unless you are intentionally setting up a fr
 
 ## Authentication and environment
 
-The `.env.local` file contains the browser-side Supabase URL and publishable key for this project. These are intended for client use; never put a Supabase secret/service-role key in this Vite app. Email magic-link authentication is used. Add your local and production app URLs to Supabase Authentication → URL Configuration → Redirect URLs.
+The `.env.local` file contains the browser-side Supabase URL and publishable key for this project. These are intended for client use; never put a Supabase secret/service-role key in this Vite app. Add your local and production app URLs to Supabase Authentication → URL Configuration → Redirect URLs.
+
+The session is stored in the browser (with an auto-refreshed token), so you stay signed in on a device until you press "Sign out". Sign-in options:
+
+- **Email + password** (recommended). Existing magic-link accounts: sign in once with a code, then use "Set password" in the account strip.
+- **Code from email.** Useful when the magic link would open in another browser (for example, an app added to the iPhone home screen has its own storage, separate from Safari). For the email to contain a code, edit Supabase → Authentication → Email Templates → *Magic Link* and add `{{ .Token }}` to the body, for example `Your code: {{ .Token }}`.
+
+In Supabase → Authentication → Providers → Email, keep "Email" enabled. "Confirm email" can stay on: new password accounts then confirm their address once.
+
+## Languages
+
+The interface is available in Russian and French (switcher at the bottom of the sidebar). The choice is remembered in the browser; by default French is used when the browser language is French. See `ARCHITECTURE.md` to add a language.
 
 ## Sync behaviour
 
 - Calendar changes save to `sessions` only.
-- Marking a run complete creates/updates its own independent row in `running_history`; unchecking it removes that run-history row without coupling the tables.
-- Strength workouts save to `strength_history` only.
+- Marking a run complete creates/updates its own independent row in `running_history`; unchecking or deleting the calendar session keeps that history row. Runs can be edited or deleted from Progress → Run history.
+- Strength workouts save to `strength_history` only. Any workout in Diary → Strength history can be opened, edited and saved back in place (no duplicate is created).
 - Cycle dates and daily wellbeing save to `daily_data`; updates merge with existing date rows so fields not currently shown in the interface are preserved.
 - Current weight is saved as a dated snapshot in `daily_data`.
-- Local changes are written immediately to browser storage. Each cloud section has its own pending marker and retries on reconnection.
+- Local changes are written immediately to browser storage. Each cloud section has its own pending marker and retries on reconnection. The strength workout being filled in is also kept locally, so reloading the page mid-workout does not lose entered sets.
 
 Keep browser storage until you have confirmed that the account has synchronized successfully.
 

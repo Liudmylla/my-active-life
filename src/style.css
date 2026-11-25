@@ -63,3 +63,43 @@
 .form-three label:last-child {
   grid-column: 1 / -1;
 }
+
+/* Language switcher */
+.language-switcher{display:flex;align-items:center;gap:4px;margin:0 0 14px;padding:4px 4px 4px 10px;border:1px solid var(--line);border-radius:10px;color:#98a198;width:fit-content}
+.language-switcher button{border:0;background:transparent;color:#7d887f;border-radius:7px;padding:5px 9px;font-size:10px;font-weight:700;letter-spacing:.6px}
+.language-switcher button.selected{background:#edf3ec;color:#587b61}
+
+/* Sign-in */
+.auth-tabs{display:inline-flex;gap:4px;background:#f7f9f5;padding:3px;border-radius:22px;margin-bottom:16px}
+.auth-tabs button{border:0;background:transparent;color:#829084;border-radius:20px;padding:7px 13px;font-size:11px}
+.auth-tabs button.selected{background:#fff;color:#638268;font-weight:700;box-shadow:0 1px 4px #536d5514}
+.auth-form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;max-width:720px}
+.auth-form label,.password-form label{display:flex;flex-direction:column;gap:6px;font-size:10px;color:#7e8980;font-weight:600}
+.auth-form input,.password-form input{height:39px;border:1px solid #e5eae2;border-radius:8px;padding:0 10px;color:#465248;background:#fff;outline:none;font-size:12px;min-width:0}
+.auth-form input:focus,.password-form input:focus{border-color:#9bb69c}
+.auth-form .primary{height:39px}
+.auth-form .primary:disabled,.password-form .primary:disabled{opacity:.55;cursor:not-allowed}
+.auth-form>small,.auth-switch{grid-column:1/-1;margin:0}
+.auth-switch{font-size:11px;color:#7d887e;display:flex;gap:4px;align-items:center}
+.text-button.inline{display:inline;padding:0;font-size:11px}
+.auth-actions{display:flex;gap:8px}
+.auth-actions .outline{height:39px}
+.account-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.password-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:10px;max-width:640px}
+.password-form label{flex:1;min-width:200px}
+.password-form .primary{height:39px}
+.password-form small{flex-basis:100%;font-size:10px;color:#929b93}
+.sync-error{margin:10px 0 0;padding:9px 12px;border-radius:8px;background:#fbefef;color:#9a5d5d;font-size:11px}
+@media(max-width:700px){.auth-form{grid-template-columns:1fr}.auth-form .primary{width:100%}.auth-actions{flex-direction:column}}
+
+/* Editable history */
+.editing-notice{margin:0 0 16px;background:#f5efe2;color:#8c7240}
+.strength-history.active{background:#f7faf5;margin:0 -10px;padding:12px 10px;border-radius:10px}
+.history-open{flex:1;min-width:0;border:0;background:transparent;padding:0;text-align:left;color:inherit;font:inherit;cursor:pointer}
+.history-open:hover b{color:#557b63}
+.history-open:focus-visible{outline:2px solid #9bb69c;outline-offset:3px;border-radius:6px}
+.history-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.history-actions{display:flex;gap:2px}
+.inline-tag{margin-left:8px;padding:2px 7px;font-size:9px;font-weight:600}
+.show-more{margin:12px auto 0}
+.run-history-item .history-actions{margin-left:2px}

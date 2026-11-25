@@ -1,18 +1,45 @@
 # My Active Life — architecture
 
-- `src/App.tsx`: application workflows.
-- `src/components`: reusable UI.
-- `src/constants/activities.ts`: activity kinds and stable workout/exercise keys.
-- `src/i18n/catalog.ts`: Russian display labels; keys are stored in records.
-- `src/types/index.ts`: domain types.
-- `src/utils/dates.ts`: local date utilities.
-- `src/supabase.ts`: Supabase client.
+```
+src/
+  App.tsx                     page shell: tabs, modal, wiring
+  main.tsx                    React root + <I18nProvider>
+  types/                      domain types (stable, language-neutral keys)
+  constants/activities.ts     activity kinds, run categories, symptoms, exercise library, templates
+  domain/
+    legacy.ts                 maps old Russian labels stored in records to stable keys
+    records.ts                ids, merging, strength ↔ calendar linking, helpers
+  storage/local.ts            localStorage keys, JSON helpers, pending-sync markers
+  cloud/sync.ts               Supabase row mappers, load snapshot, per-table saves
+  state/
+    useAuth.ts                session restore, password / email-code sign-in, set password
+    useJournal.ts             all journal data, local persistence, cloud load/save/retry
+    useStrengthEditor.ts      strength workout draft: new, from plan, or opened from history
+  i18n/
+    index.tsx                 provider, useI18n(), formatting and title helpers
+    locales/ru.ts, fr.ts      typed message catalogs (fr must match ru's shape)
+  components/
+    layout/                   Sidebar, Topbar, LanguageSwitcher
+    calendar/WeekCalendar.tsx
+    auth/                     AuthPanel, AccountStrip
+    session/SessionModal.tsx  add / edit calendar activity, edit a run in history
+    views/                    WeekView, StrengthDiary, ProgressView, CycleView
+```
 
-## Fresh start
-The app uses the new `mal-v2-*` local storage namespace. It does not import, normalize, or read the old local data. Re-enter records after reset.
+## Data and translations
+Records store keys (`run`, `easy`, `intervals`, `fatigue`, `lowerBody`…), never display text.
+An empty `title` means "show the default title in the current language".
+Records written by older versions (Russian labels such as `Бег`, `Лёгкий`, `Усталость`) are
+normalized on every read, from localStorage and from Supabase, and written back with keys.
 
-## Supabase v2
-Only profiles, sessions, running_history, strength_history and daily_data remain. Legacy columns and migration logic are removed. Running history is independent: source_session_id is informational and has no FK. Owner-scoped RLS is retained.
+Adding a language: copy `src/i18n/locales/ru.ts` to a new file typed as `Messages`,
+translate it, and register it in `languages` in `src/i18n/index.tsx`.
 
-## Important
-`supabase/schema.sql` and `supabase/001_create_and_migrate.sql` are destructive reset scripts. They drop the app tables and `public.user_app_data`, then recreate them. They have not been run against the live database.
+## Sync
+Every change is written to localStorage immediately, then saved to the touched Supabase table.
+Saves are serialized per table. A failed save marks the section as pending; pending sections
+are retried when the browser comes back online and are preferred over cloud data on the next load.
+
+## Supabase
+Tables: profiles, sessions, running_history, strength_history, daily_data, with owner-scoped RLS.
+`supabase/schema.sql` and `supabase/001_create_and_migrate.sql` are destructive reset scripts.
