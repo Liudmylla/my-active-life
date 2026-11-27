@@ -66,8 +66,8 @@ export default function ProgressView({ journal, weekSessions, cycleDayForDate, o
         <div className="run-chart-summary"><b>{metric === 'pace' ? t.progress.chartPace : metric === 'avgHr' ? t.progress.chartHr : t.progress.chartDistance}</b><span>{t.progress.chartCount(chartRuns.length)}</span></div>
         <svg className="run-chart" viewBox="0 0 300 118" role="img" aria-label={t.progress.chartAria}>
           <line x1="20" y1="100" x2="276" y2="100"/><line x1="20" y1="28" x2="276" y2="28"/>
-          <polyline points={points} fill="none" stroke="#917caa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-          {values.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="4" fill="#fff" stroke="#846d9e" strokeWidth="2"/>)}
+          <polyline points={points} fill="none" stroke="#9a7f98" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+          {values.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="4" fill="#fff" stroke="#7f6780" strokeWidth="2"/>)}
         </svg>
         <div className="run-chart-labels"><span>{shortDate(chartRuns[0]?.runDate)}</span><span>{shortDate(chartRuns[chartRuns.length - 1]?.runDate)}</span></div>
         <div className="run-chart-note">{metric === 'pace' ? t.progress.notePace : metric === 'avgHr' ? t.progress.noteHr : t.progress.noteDistance}</div>
